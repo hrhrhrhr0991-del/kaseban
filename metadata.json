@@ -1,0 +1,6 @@
+{
+  "name": "کاسبان",
+  "description": "پلتفرم اجتماعی و بازار آدم‌های معتمد کاسبان با تم شیشه‌ای آبی، آشنایی با کاسب‌های محلی، ثبت سفارش مستقیم، کیف پول و چت اختصاصی",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
