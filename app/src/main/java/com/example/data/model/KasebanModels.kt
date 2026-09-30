@@ -8,10 +8,32 @@ data class MerchantProduct(
     val isAvailable: Boolean = true
 )
 
+data class BoothPost(
+    val id: String,
+    val merchantId: String,
+    val title: String = "",
+    val text: String,
+    val imageUri: String? = null,
+    val date: String = "هم‌اکنون",
+    val likesCount: Int = 0
+)
+
+data class UserAccount(
+    val phone: String,
+    val pin: String,
+    val name: String,
+    val role: String,
+    val referralCode: String = "",
+    val shopTitle: String = "",
+    val bio: String = "",
+    val location: String = "ایران"
+)
+
 data class Merchant(
     val id: String,
     val name: String,
     val title: String,
+    val phone: String = "",
     val avatarEmoji: String = "🏪",
     val avatarUri: String? = null,
     val specialty: String,
@@ -24,6 +46,7 @@ data class Merchant(
     val reviewsCount: Int = 0,
     val reviewsSummary: String = "",
     val products: List<MerchantProduct> = emptyList(),
+    val posts: List<BoothPost> = emptyList(),
     var isKnownByUser: Boolean = false
 ) {
     fun matchesCategory(category: String): Boolean {
