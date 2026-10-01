@@ -21,8 +21,20 @@ class KasebanDatabase(context: Context) {
     companion object {
         private const val KEY_ACCOUNTS = "kaseban_saved_accounts_list"
         private const val KEY_MERCHANTS = "kaseban_saved_merchants_list"
+        private const val KEY_DB_VERSION = "kaseban_clean_schema_version"
         const val SUPER_ADMIN_PHONE = "128110"
         const val SUPER_ADMIN_PIN = "128110"
+    }
+
+    init {
+        val currentVersion = prefs.getInt(KEY_DB_VERSION, 1)
+        if (currentVersion < 2) {
+            // Automatically clear legacy mock data from device storage
+            prefs.edit()
+                .remove(KEY_MERCHANTS)
+                .putInt(KEY_DB_VERSION, 2)
+                .apply()
+        }
     }
 
     // -------------------------------------------------------------
