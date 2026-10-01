@@ -64,6 +64,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import com.example.ui.components.EditProfileDialog
+import com.example.ui.components.BoothManagementDialog
 import com.example.ui.theme.AppColorPalette
 import com.example.ui.theme.AppThemeMode
 import com.example.ui.theme.AppTheme
@@ -127,16 +128,19 @@ import com.example.ui.theme.TrustGreen
 import com.example.ui.theme.TrustGreenLight
 import com.example.viewmodel.KasebanViewModel
 
+import com.example.ui.theme.PeydaFontFamily
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+
 @Composable
 fun ProfileWalletScreen(
     viewModel: KasebanViewModel,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val colors = AppTheme.colors
     val walletBalance by viewModel.walletBalance.collectAsState()
     val transactions by viewModel.walletTransactions.collectAsState()
-    val isMerchantActive by viewModel.isMerchantPageActive.collectAsState()
-    val myProducts by viewModel.myProducts.collectAsState()
     val userAddresses by viewModel.userAddresses.collectAsState()
     val userDisplayName by viewModel.userDisplayName.collectAsState()
     val userShopTitle by viewModel.userShopTitle.collectAsState()
@@ -150,7 +154,7 @@ fun ProfileWalletScreen(
     val colorPalette by viewModel.colorPalette.collectAsState()
 
     var showDepositDialog by remember { mutableStateOf(false) }
-    var showAddProductDialog by remember { mutableStateOf(false) }
+    var showBoothManagementDialog by remember { mutableStateOf(false) }
     var showEditProfileDialog by remember { mutableStateOf(false) }
 
     LazyColumn(
@@ -219,17 +223,87 @@ fun ProfileWalletScreen(
             }
         }
 
-        // 5. Merchant Business Mode (Only shown if user registered as merchant or activated store)
-        if (userRole.contains("کاسب") || isMerchantActive || myProducts.isNotEmpty()) {
+        // 5. Merchant Business Mode & Booth Launch
+        val myBooth = viewModel.getMyBooth()
+        if (userRole.contains("کاسب") || myBooth != null) {
             item {
                 FluidAnimatedEntry(delayMillis = 200) {
                     MyMerchantBusinessSection(
-                        shopTitle = userShopTitle,
-                        isActive = isMerchantActive,
-                        onToggleActive = { viewModel.toggleMerchantPageActive() },
-                        products = myProducts,
-                        onAddProductClick = { showAddProductDialog = true }
+                        shopTitle = myBooth?.title ?: (if (userShopTitle.isNotBlank()) userShopTitle else "غرفه $userDisplayName"),
+                        isActive = myBooth?.isOnline ?: true,
+                        onToggleActive = { viewModel.createOrUpdateMyBooth(userShopTitle, "محصولات محلی", userLocation, userBio) },
+                        products = myBooth?.products ?: emptyList(),
+                        onAddProductClick = { showBoothManagementDialog = true }
                     )
+                }
+            }
+        } else {
+            item {
+                FluidAnimatedEntry(delayMillis = 200) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = colors.surfaceCard),
+                        border = CardDefaults.outlinedCardBorder().copy(brush = Brush.linearGradient(listOf(colors.primaryLight, colors.borderSubtle)))
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(colors.primaryLight),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Storefront,
+                                        contentDescription = null,
+                                        tint = colors.primaryDark,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(
+                                        text = "آیا تولیدکننده یا کاسب هستید؟",
+                                        fontFamily = PeydaFontFamily,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = colors.textPrimary
+                                    )
+                                    Text(
+                                        text = "غرفه اختصاصی خود را در بازار کاسبان ایجاد کرده و دسترنج خود را بفروشید.",
+                                        fontFamily = PeydaFontFamily,
+                                        fontSize = 11.5.sp,
+                                        color = colors.textSecondary
+                                    )
+                                }
+                            }
+                            Button(
+                                onClick = { showBoothManagementDialog = true },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(44.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = colors.primary)
+                            ) {
+                                Text(
+                                    text = "🏪 راه‌اندازی و مدیریت غرفه من در بازار",
+                                    fontFamily = PeydaFontFamily,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.5.sp,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -254,15 +328,11 @@ fun ProfileWalletScreen(
         )
     }
 
-    // Add Merchant Product Dialog
-    if (showAddProductDialog) {
-        AddProductDialog(
-            onDismiss = { showAddProductDialog = false },
-            onAddProduct = { title, weight, price ->
-                viewModel.addMerchantProduct(title, weight, price)
-                showAddProductDialog = false
-                Toast.makeText(context, "محصول جدید به فروشگاه شما افزوده شد", Toast.LENGTH_SHORT).show()
-            }
+    // Booth Management Dialog
+    if (showBoothManagementDialog) {
+        BoothManagementDialog(
+            onDismiss = { showBoothManagementDialog = false },
+            viewModel = viewModel
         )
     }
 

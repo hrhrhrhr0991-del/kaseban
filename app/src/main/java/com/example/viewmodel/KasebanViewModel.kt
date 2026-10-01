@@ -5,15 +5,18 @@ import android.content.Context
 import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.data.remote.GeminiApiClient
+import com.example.data.local.KasebanDatabase
+import com.example.data.model.BoothPost
 import com.example.data.model.DirectChatMessage
 import com.example.data.model.FeaturedBanner
 import com.example.data.model.Merchant
 import com.example.data.model.MerchantProduct
 import com.example.data.model.MerchantReview
 import com.example.data.model.MutualFamiliar
+import com.example.data.model.UserAccount
 import com.example.data.model.UserAddress
 import com.example.data.model.WalletTransaction
+import com.example.data.remote.GeminiApiClient
 import com.example.ui.components.KasebanScreen
 import com.example.ui.theme.AppColorPalette
 import com.example.ui.theme.AppThemeMode
@@ -24,7 +27,8 @@ import kotlinx.coroutines.launch
 
 class KasebanViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val prefs = application.getSharedPreferences("kaseban_app_prefs", Context.MODE_PRIVATE)
+    private val prefs = application.getSharedPreferences("kaseban_app_session", Context.MODE_PRIVATE)
+    val database = KasebanDatabase(application)
 
     // Theme Mode (Light / Dark) and Color Palette (Pastel Teal / Navy White / Emerald Green)
     private val _themeMode = MutableStateFlow(
@@ -65,11 +69,7 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
         setColorPalette(next)
     }
 
-    fun loginAsGuest() {
-        completeAuth(name = "کاربر مهمان", phone = "09120000000", referralCode = "", role = "خریدار معتمد")
-    }
-
-    // User Authentication State (Login & Registration)
+    // User Authentication State (Session)
     private val _isUserLoggedIn = MutableStateFlow(false)
     val isUserLoggedIn: StateFlow<Boolean> = _isUserLoggedIn.asStateFlow()
 
@@ -101,7 +101,7 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
     private val _currentScreen = MutableStateFlow(KasebanScreen.MERCHANTS)
     val currentScreen: StateFlow<KasebanScreen> = _currentScreen.asStateFlow()
 
-    // Merchants & Familiar Network - 100% Genuine, No Dummy Pre-population
+    // Persistent Merchants in Marketplace
     private val _merchantsTab = MutableStateFlow("کاسب‌ها") // "کاسب‌ها" or "آشنایان"
     val merchantsTab: StateFlow<String> = _merchantsTab.asStateFlow()
 
@@ -139,13 +139,6 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
     private val _walletTransactions = MutableStateFlow<List<WalletTransaction>>(emptyList())
     val walletTransactions: StateFlow<List<WalletTransaction>> = _walletTransactions.asStateFlow()
 
-    // Merchant Management Mode (مدیریت کاسبی من)
-    private val _isMerchantPageActive = MutableStateFlow(prefs.getBoolean("merchant_page_active", false))
-    val isMerchantPageActive: StateFlow<Boolean> = _isMerchantPageActive.asStateFlow()
-
-    private val _myProducts = MutableStateFlow<List<MerchantProduct>>(emptyList())
-    val myProducts: StateFlow<List<MerchantProduct>> = _myProducts.asStateFlow()
-
     // Addresses
     private val _userAddresses = MutableStateFlow<List<UserAddress>>(emptyList())
     val userAddresses: StateFlow<List<UserAddress>> = _userAddresses.asStateFlow()
@@ -166,66 +159,419 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
     val isAiLoading: StateFlow<Boolean> = _isAiLoading.asStateFlow()
 
     init {
-        val savedLoggedIn = prefs.getBoolean("user_logged_in", false)
-        val savedPhone = prefs.getString("user_phone", "") ?: ""
-        val savedName = prefs.getString("user_display_name", "") ?: ""
+        // 1. Load permanent merchants from local database
+        val savedMerchants = database.getAllMerchants()
+        _merchants.value = savedMerchants
 
-        val isDummyOrGuest = !savedLoggedIn ||
-                savedPhone.isBlank() ||
-                savedPhone == "حساب مهمان" ||
-                savedPhone == "guest" ||
-                savedName.contains("مهمان") ||
-                savedName == "بانو مهسا رئیسیان"
+        // 2. Restore user session if logged in
+        val sessionActive = prefs.getBoolean("session_active", false)
+        val sessionPhone = prefs.getString("session_phone", "") ?: ""
 
-        if (isDummyOrGuest) {
-            prefs.edit().clear().apply()
-            _isUserLoggedIn.value = false
-            _userDisplayName.value = ""
-            _userPhone.value = ""
-            _userRole.value = "خریدار معتمد"
-            _userShopTitle.value = ""
-            _userBio.value = ""
-            _userLocation.value = "ایران"
-            _userAvatarUri.value = null
-            _registeredReferralCode.value = ""
-            _merchants.value = emptyList()
-        } else {
-            _isUserLoggedIn.value = true
-            _userDisplayName.value = savedName
-            _userPhone.value = savedPhone
-            val role = prefs.getString("user_role", "خریدار معتمد") ?: "خریدار معتمد"
-            _userRole.value = role
-            val shop = prefs.getString("user_shop_title", "") ?: ""
-            _userShopTitle.value = shop
-            _userBio.value = prefs.getString("user_bio", "") ?: ""
-            _userLocation.value = prefs.getString("user_location", "ایران") ?: "ایران"
-            _userAvatarUri.value = prefs.getString("user_avatar_uri", null)
-            _registeredReferralCode.value = prefs.getString("registered_referral_code", "") ?: ""
-
-            // If user logged in as merchant, ensure their shop is present in marketplace
-            if (role == "کاسب و تولیدکننده" && shop.isNotBlank()) {
-                val myShop = Merchant(
-                    id = "my_shop",
-                    name = savedName,
-                    title = shop,
-                    avatarEmoji = "🏪",
-                    specialty = "محصولات و دسترنج محلی",
-                    location = _userLocation.value,
-                    isOnline = true,
-                    knownCount = 0,
-                    storyTitle = shop,
-                    storyText = "غرفه ثبت‌شده در بازار کاسبان",
-                    reviewsCount = 0,
-                    reviewsSummary = "",
-                    products = emptyList(),
-                    isKnownByUser = false
-                )
-                _merchants.value = listOf(myShop)
+        if (sessionActive && sessionPhone.isNotBlank()) {
+            val account = database.findAccountByPhone(sessionPhone)
+            if (account != null) {
+                _isUserLoggedIn.value = true
+                _userPhone.value = account.phone
+                _userDisplayName.value = account.name
+                _userRole.value = account.role
+                _userShopTitle.value = account.shopTitle
+                _userBio.value = account.bio
+                _userLocation.value = account.location
+                _userAvatarUri.value = prefs.getString("user_avatar_uri", null)
+                _registeredReferralCode.value = account.referralCode
             }
         }
     }
 
-    // Navigation
+    // -----------------------------------------------------------------
+    // User Authentication with 4-Digit Numeric PIN (SECURE & PERSISTENT)
+    // -----------------------------------------------------------------
+
+    /**
+     * Register a new user account with required 4-digit numeric PIN.
+     * Returns null on success, or an error message string on failure.
+     */
+    fun registerWithPin(
+        name: String,
+        phone: String,
+        pin: String,
+        pinConfirm: String,
+        role: String,
+        referralCode: String = "",
+        shopTitle: String = "",
+        specialty: String = "محصولات و دسترنج محلی",
+        location: String = "ایران",
+        bio: String = ""
+    ): String? {
+        val cleanName = name.trim()
+        val cleanPhone = phone.trim()
+        val cleanPin = pin.trim()
+        val cleanConfirm = pinConfirm.trim()
+
+        if (cleanName.isBlank()) {
+            return "لطفاً نام و نام‌خانوادگی خود را وارد نمایید."
+        }
+        if (cleanPhone.length < 10) {
+            return "شماره تلفن همراه باید حداقل ۱۰ رقم باشد."
+        }
+        if (cleanPin.length != 4 || !cleanPin.all { it.isDigit() }) {
+            return "رمز عبور باید دقیقاً ۴ رقم عدد باشد."
+        }
+        if (cleanPin != cleanConfirm) {
+            return "رمز عبور با تکرار آن مطابقت ندارد."
+        }
+
+        val account = UserAccount(
+            phone = cleanPhone,
+            pin = cleanPin,
+            name = cleanName,
+            role = role,
+            referralCode = referralCode.trim(),
+            shopTitle = shopTitle.trim(),
+            bio = bio.trim(),
+            location = location.trim().ifBlank { "ایران" }
+        )
+
+        val regError = database.registerAccount(account)
+        if (regError != null) {
+            return regError
+        }
+
+        // If registered as merchant, create their single official booth immediately
+        if (role == "کاسب و تولیدکننده") {
+            val title = if (shopTitle.isNotBlank()) shopTitle.trim() else "غرفه $cleanName"
+            val userBooth = Merchant(
+                id = "booth_$cleanPhone",
+                name = cleanName,
+                title = title,
+                phone = cleanPhone,
+                avatarEmoji = "🏪",
+                avatarUri = null,
+                specialty = specialty.ifBlank { "محصولات و دسترنج محلی" },
+                location = location.ifBlank { "ایران" },
+                isOnline = true,
+                knownCount = 0,
+                storyTitle = title,
+                storyText = bio.ifBlank { "غرفه رسمی و معتبر در بازار کاسبان" },
+                reviewsCount = 0,
+                reviewsSummary = "",
+                products = emptyList(),
+                posts = emptyList(),
+                isKnownByUser = false
+            )
+            val currentList = _merchants.value.filter { it.phone != cleanPhone }
+            val updated = listOf(userBooth) + currentList
+            _merchants.value = updated
+            database.saveMerchants(updated)
+        }
+
+        // Establish session
+        setLoggedInSession(account)
+        return null
+    }
+
+    /**
+     * Log in an existing user with their phone and 4-digit PIN.
+     * Returns null on success, or an error message string on failure.
+     */
+    fun loginWithPin(phone: String, pin: String): String? {
+        val cleanPhone = phone.trim()
+        val cleanPin = pin.trim()
+
+        if (cleanPhone.isBlank()) {
+            return "لطفاً شماره تلفن همراه خود را وارد کنید."
+        }
+        if (cleanPin.length != 4 || !cleanPin.all { it.isDigit() }) {
+            return "لطفاً رمز عددی ۴ رقمی خود را به طور کامل وارد کنید."
+        }
+
+        val (account, error) = database.verifyPinAndLogin(cleanPhone, cleanPin)
+        if (error != null || account == null) {
+            return error ?: "اطلاعات ورود نادرست است."
+        }
+
+        setLoggedInSession(account)
+        return null
+    }
+
+    private fun setLoggedInSession(account: UserAccount) {
+        _isUserLoggedIn.value = true
+        _userDisplayName.value = account.name
+        _userPhone.value = account.phone
+        _userRole.value = account.role
+        _userShopTitle.value = account.shopTitle
+        _userBio.value = account.bio
+        _userLocation.value = account.location
+        _registeredReferralCode.value = account.referralCode
+
+        prefs.edit()
+            .putBoolean("session_active", true)
+            .putString("session_phone", account.phone)
+            .apply()
+    }
+
+    fun logout() {
+        // Clear ONLY active session - NEVER wipe the persistent database of accounts and merchants!
+        prefs.edit()
+            .putBoolean("session_active", false)
+            .remove("session_phone")
+            .apply()
+
+        _isUserLoggedIn.value = false
+        _userDisplayName.value = ""
+        _userPhone.value = ""
+        _userRole.value = "خریدار معتمد"
+        _userShopTitle.value = ""
+        _userBio.value = ""
+        _userAvatarUri.value = null
+        _walletBalance.value = 0L
+        _walletTransactions.value = emptyList()
+        _currentScreen.value = KasebanScreen.MERCHANTS
+        _selectedMerchant.value = null
+        _activeChatMerchant.value = null
+    }
+
+    // -----------------------------------------------------------------
+    // Single Booth Management per Merchant (Rich Customization & Settings)
+    // -----------------------------------------------------------------
+
+    /**
+     * Returns the current logged-in user's booth, if any.
+     */
+    fun getMyBooth(): Merchant? {
+        val phone = _userPhone.value
+        if (phone.isBlank()) return null
+        return _merchants.value.find { it.phone == phone || it.id == "booth_$phone" }
+    }
+
+    /**
+     * Creates or updates the single booth for the current user with complete settings.
+     */
+    fun createOrUpdateMyBooth(
+        title: String,
+        specialty: String,
+        location: String,
+        storyText: String,
+        address: String = "",
+        workHours: String = "همه‌روزه از ۸ صبح تا ۱۰ شب",
+        deliveryMethods: String = "پست پیشتاز، تیپاکس، پیک شهری",
+        freeShippingThreshold: Long = 0L,
+        minOrderAmount: Long = 0L,
+        guaranteePolicy: String = "ضمانت اصالت و بازگشت کامل وجه در صورت عدم رضایت",
+        socialTelegram: String = "",
+        socialWhatsapp: String = "",
+        isOnline: Boolean = true,
+        avatarUri: String? = null,
+        bannerUri: String? = null
+    ): Merchant {
+        val phone = _userPhone.value
+        val name = _userDisplayName.value
+        val cleanTitle = title.trim().ifBlank { "غرفه $name" }
+        val cleanSpecialty = specialty.trim().ifBlank { "محصولات و دسترنج محلی" }
+        val cleanLoc = location.trim().ifBlank { _userLocation.value }
+        val cleanStory = storyText.trim()
+
+        val existing = getMyBooth()
+        val booth = if (existing != null) {
+            existing.copy(
+                title = cleanTitle,
+                specialty = cleanSpecialty,
+                location = cleanLoc,
+                storyTitle = cleanTitle,
+                storyText = cleanStory.ifBlank { existing.storyText },
+                address = address.trim(),
+                workHours = workHours.trim().ifBlank { "همه‌روزه از ۸ صبح تا ۱۰ شب" },
+                deliveryMethods = deliveryMethods.trim().ifBlank { "پست پیشتاز، تیپاکس، پیک شهری" },
+                freeShippingThreshold = freeShippingThreshold,
+                minOrderAmount = minOrderAmount,
+                guaranteePolicy = guaranteePolicy.trim().ifBlank { "ضمانت اصالت و بازگشت کامل وجه در صورت عدم رضایت" },
+                socialTelegram = socialTelegram.trim(),
+                socialWhatsapp = socialWhatsapp.trim(),
+                isOnline = isOnline,
+                avatarUri = avatarUri ?: existing.avatarUri ?: _userAvatarUri.value,
+                bannerUri = bannerUri ?: existing.bannerUri
+            )
+        } else {
+            Merchant(
+                id = "booth_$phone",
+                name = name,
+                title = cleanTitle,
+                phone = phone,
+                avatarEmoji = "🏪",
+                avatarUri = avatarUri ?: _userAvatarUri.value,
+                bannerUri = bannerUri,
+                specialty = cleanSpecialty,
+                location = cleanLoc,
+                address = address.trim(),
+                isOnline = isOnline,
+                workHours = workHours.trim().ifBlank { "همه‌روزه از ۸ صبح تا ۱۰ شب" },
+                deliveryMethods = deliveryMethods.trim().ifBlank { "پست پیشتاز، تیپاکس، پیک شهری" },
+                freeShippingThreshold = freeShippingThreshold,
+                minOrderAmount = minOrderAmount,
+                guaranteePolicy = guaranteePolicy.trim().ifBlank { "ضمانت اصالت و بازگشت کامل وجه در صورت عدم رضایت" },
+                socialTelegram = socialTelegram.trim(),
+                socialWhatsapp = socialWhatsapp.trim(),
+                knownCount = 0,
+                storyTitle = cleanTitle,
+                storyText = cleanStory.ifBlank { "غرفه معتبر و فعال در بازار کاسبان" },
+                reviewsCount = 0,
+                reviewsSummary = "",
+                products = emptyList(),
+                posts = emptyList(),
+                isKnownByUser = false
+            )
+        }
+
+        // Update role and shop title
+        _userRole.value = "کاسب و تولیدکننده"
+        _userShopTitle.value = cleanTitle
+
+        val filtered = _merchants.value.filter { it.phone != phone && it.id != "booth_$phone" }
+        val updatedList = listOf(booth) + filtered
+        _merchants.value = updatedList
+        database.saveMerchants(updatedList)
+
+        // Also update account in persistent db
+        val acc = database.findAccountByPhone(phone)
+        if (acc != null) {
+            val updatedAccounts = database.getAllAccounts().map {
+                if (it.phone == phone) it.copy(role = "کاسب و تولیدکننده", shopTitle = cleanTitle) else it
+            }
+            database.saveAccounts(updatedAccounts)
+        }
+
+        if (_selectedMerchant.value?.id == booth.id) {
+            _selectedMerchant.value = booth
+        }
+
+        return booth
+    }
+
+    /**
+     * Adds a product to the user's single booth and persists to database.
+     */
+    fun addProductToMyBooth(
+        title: String,
+        weight: String,
+        price: Long,
+        originalPrice: Long = 0L,
+        category: String = "عمومی",
+        description: String = ""
+    ) {
+        if (title.isBlank() || price <= 0) return
+        val phone = _userPhone.value
+        var booth = getMyBooth() ?: createOrUpdateMyBooth(_userShopTitle.value, "محصولات محلی", _userLocation.value, _userBio.value)
+
+        val newProduct = MerchantProduct(
+            id = "prod_${System.currentTimeMillis()}",
+            title = title.trim(),
+            weight = weight.trim().ifBlank { "۱ واحد" },
+            price = price,
+            originalPrice = originalPrice,
+            isAvailable = true,
+            category = category.trim().ifBlank { "عمومی" },
+            description = description.trim()
+        )
+
+        val updatedProducts = listOf(newProduct) + booth.products
+        booth = booth.copy(products = updatedProducts)
+
+        val updatedList = _merchants.value.map { if (it.id == booth.id) booth else it }
+        _merchants.value = updatedList
+        database.saveMerchants(updatedList)
+
+        if (_selectedMerchant.value?.id == booth.id) {
+            _selectedMerchant.value = booth
+        }
+    }
+
+    /**
+     * Toggles availability status of a product (موجود / ناموجود)
+     */
+    fun toggleProductAvailability(productId: String) {
+        val booth = getMyBooth() ?: return
+        val updatedProducts = booth.products.map {
+            if (it.id == productId) it.copy(isAvailable = !it.isAvailable) else it
+        }
+        val updatedBooth = booth.copy(products = updatedProducts)
+
+        val updatedList = _merchants.value.map { if (it.id == updatedBooth.id) updatedBooth else it }
+        _merchants.value = updatedList
+        database.saveMerchants(updatedList)
+
+        if (_selectedMerchant.value?.id == updatedBooth.id) {
+            _selectedMerchant.value = updatedBooth
+        }
+    }
+
+    /**
+     * Removes a product from the user's booth.
+     */
+    fun removeProductFromMyBooth(productId: String) {
+        val booth = getMyBooth() ?: return
+        val updatedProducts = booth.products.filter { it.id != productId }
+        val updatedBooth = booth.copy(products = updatedProducts)
+
+        val updatedList = _merchants.value.map { if (it.id == updatedBooth.id) updatedBooth else it }
+        _merchants.value = updatedList
+        database.saveMerchants(updatedList)
+
+        if (_selectedMerchant.value?.id == updatedBooth.id) {
+            _selectedMerchant.value = updatedBooth
+        }
+    }
+
+    /**
+     * Adds a post/story with text and photo to the user's booth and persists to database.
+     */
+    fun addPostToMyBooth(title: String, text: String, imageUri: String?) {
+        if (text.isBlank()) return
+        val phone = _userPhone.value
+        var booth = getMyBooth() ?: createOrUpdateMyBooth(_userShopTitle.value, "محصولات محلی", _userLocation.value, _userBio.value)
+
+        val newPost = BoothPost(
+            id = "post_${System.currentTimeMillis()}",
+            merchantId = booth.id,
+            title = title.trim(),
+            text = text.trim(),
+            imageUri = imageUri,
+            date = "هم‌اکنون",
+            likesCount = 0
+        )
+
+        val updatedPosts = listOf(newPost) + booth.posts
+        booth = booth.copy(posts = updatedPosts)
+
+        val updatedList = _merchants.value.map { if (it.id == booth.id) booth else it }
+        _merchants.value = updatedList
+        database.saveMerchants(updatedList)
+
+        if (_selectedMerchant.value?.id == booth.id) {
+            _selectedMerchant.value = booth
+        }
+    }
+
+    /**
+     * Removes a post from the user's booth.
+     */
+    fun removePostFromMyBooth(postId: String) {
+        val booth = getMyBooth() ?: return
+        val updatedPosts = booth.posts.filter { it.id != postId }
+        val updatedBooth = booth.copy(posts = updatedPosts)
+
+        val updatedList = _merchants.value.map { if (it.id == updatedBooth.id) updatedBooth else it }
+        _merchants.value = updatedList
+        database.saveMerchants(updatedList)
+
+        if (_selectedMerchant.value?.id == updatedBooth.id) {
+            _selectedMerchant.value = updatedBooth
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Navigation & Screen Controls
+    // -----------------------------------------------------------------
+
     fun navigateTo(screen: KasebanScreen) {
         _currentScreen.value = screen
         _selectedMerchant.value = null
@@ -238,6 +584,10 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
 
     fun clearCategoryFilter() {
         _selectedCategory.value = null
+    }
+
+    fun selectCategory(cat: String?) {
+        _selectedCategory.value = cat
     }
 
     fun selectMerchant(merchant: Merchant) {
@@ -256,42 +606,13 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
                 it.copy(isKnownByUser = newKnown, knownCount = newCount)
             } else it
         }
+        database.saveMerchants(_merchants.value)
         if (_selectedMerchant.value?.id == merchantId) {
             _selectedMerchant.value = _merchants.value.find { it.id == merchantId }
         }
     }
 
-    // Register a new real merchant in the marketplace
-    fun registerNewMerchant(
-        name: String,
-        shopTitle: String,
-        specialty: String,
-        location: String,
-        description: String,
-        products: List<MerchantProduct> = emptyList()
-    ) {
-        if (name.isBlank() || shopTitle.isBlank()) return
-        val newMerchant = Merchant(
-            id = "m_${System.currentTimeMillis()}",
-            name = name.trim(),
-            title = shopTitle.trim(),
-            avatarEmoji = "🏪",
-            avatarUri = null,
-            specialty = specialty.ifBlank { "عمومی" },
-            location = location.ifBlank { "ایران" },
-            isOnline = true,
-            knownCount = 0,
-            storyTitle = shopTitle.trim(),
-            storyText = description.trim(),
-            reviewsCount = 0,
-            reviewsSummary = "",
-            products = products,
-            isKnownByUser = false
-        )
-        _merchants.value = listOf(newMerchant) + _merchants.value
-    }
-
-    // Chat actions - Honest direct messaging with real user inputs
+    // Chat actions
     fun openChatWithMerchant(merchant: Merchant) {
         _activeChatMerchant.value = merchant
         if (!_chatMessagesMap.value.containsKey(merchant.id)) {
@@ -320,7 +641,6 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
         val updatedMap = _chatMessagesMap.value.toMutableMap()
         updatedMap[merchantId] = currentList + newMessage
         _chatMessagesMap.value = updatedMap
-        // No fake auto-reply bots simulating real merchants!
     }
 
     fun payChatInvoice(merchantId: String, messageId: String, amount: Long) {
@@ -347,7 +667,6 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
         ) + _walletTransactions.value
     }
 
-    // Wallet actions
     fun depositToWallet(amount: Long) {
         _walletBalance.value += amount
         _walletTransactions.value = listOf(
@@ -359,37 +678,6 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
                 date = "امروز"
             )
         ) + _walletTransactions.value
-    }
-
-    fun toggleMerchantPageActive() {
-        _isMerchantPageActive.value = !_isMerchantPageActive.value
-    }
-
-    fun addMerchantProduct(title: String, weight: String, price: Long) {
-        val newProduct = MerchantProduct(
-            id = "p-${System.currentTimeMillis()}",
-            title = title,
-            weight = weight,
-            price = price
-        )
-        _myProducts.value = listOf(newProduct) + _myProducts.value
-
-        // Also update the user's merchant listing in marketplace
-        _merchants.value = _merchants.value.map { m ->
-            if (m.name == _userDisplayName.value || m.title == _userShopTitle.value) {
-                m.copy(products = listOf(newProduct) + m.products)
-            } else m
-        }
-    }
-
-    fun selectCategory(cat: String?) {
-        _selectedCategory.value = cat
-    }
-
-    fun toggleMutualFamiliarKnown(id: String) {
-        _mutualFamiliars.value = _mutualFamiliars.value.map {
-            if (it.id == id) it.copy(isKnown = !it.isKnown) else it
-        }
     }
 
     fun addMutualFamiliar(name: String, relation: String = "آشنای معتمد") {
@@ -405,6 +693,12 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
         _mutualFamiliars.value = listOf(newFamiliar) + _mutualFamiliars.value
     }
 
+    fun toggleMutualFamiliarKnown(id: String) {
+        _mutualFamiliars.value = _mutualFamiliars.value.map {
+            if (it.id == id) it.copy(isKnown = !it.isKnown) else it
+        }
+    }
+
     fun addMerchantReview(comment: String, rating: Int = 5) {
         if (comment.isBlank()) return
         val targetMerchantId = _selectedMerchant.value?.id ?: return
@@ -418,12 +712,12 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
         )
         _merchantReviews.value = listOf(newReview) + _merchantReviews.value
 
-        // Increment reviews count on the actual merchant
         _merchants.value = _merchants.value.map { m ->
             if (m.id == targetMerchantId) {
                 m.copy(reviewsCount = m.reviewsCount + 1)
             } else m
         }
+        database.saveMerchants(_merchants.value)
         _selectedMerchant.value = _merchants.value.find { it.id == targetMerchantId }
     }
 
@@ -459,10 +753,9 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
 
     fun shareInvite(context: Context) {
         val message = """
-🤝 دعوت به شبکه «کاسبان» (بازار آدم‌های معتمد)
+🤝 دعوت به شبکه «کاسبان» (بازار معتمدین و تولیدکنندگان محلی)
 
 خرید مستقیم و بدون واسطه از تولیدکنندگان و کسبه محلی.
-سامانه کاسبان: https://kaseban.ir
 کد معرف من: $inviteCode
         """.trimIndent()
 
@@ -476,7 +769,6 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
         context.startActivity(chooser)
     }
 
-    // AI advisor
     fun sendAiPrompt(prompt: String) {
         if (prompt.isBlank()) return
         _aiMessages.value = _aiMessages.value + listOf(Pair(prompt, true))
@@ -492,90 +784,6 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    // User Authentication Methods
-    fun completeAuth(name: String, phone: String, referralCode: String, role: String) {
-        val finalName = if (name.isNotBlank()) name.trim() else "کاربر کاسبان"
-        val finalPhone = phone.trim()
-        val finalRole = if (role.isNotBlank()) role else "خریدار معتمد"
-        val finalRef = referralCode.trim()
-        val defaultShop = if (finalRole == "کاسب و تولیدکننده") "غرفه $finalName" else ""
-
-        _userDisplayName.value = finalName
-        _userPhone.value = finalPhone
-        _userRole.value = finalRole
-        _userShopTitle.value = defaultShop
-        _userBio.value = ""
-        _userLocation.value = "ایران"
-        _userAvatarUri.value = null
-        _registeredReferralCode.value = finalRef
-        _isUserLoggedIn.value = true
-        _myProducts.value = emptyList()
-        _userAddresses.value = emptyList()
-        _mutualFamiliars.value = emptyList()
-        _isMerchantPageActive.value = (finalRole == "کاسب و تولیدکننده")
-
-        // If the user registered as a merchant, create their genuine shop in the marketplace
-        if (finalRole == "کاسب و تولیدکننده") {
-            val userMerchant = Merchant(
-                id = "m_${System.currentTimeMillis()}",
-                name = finalName,
-                title = defaultShop,
-                avatarEmoji = "🏪",
-                avatarUri = null,
-                specialty = "محصولات و دسترنج محلی",
-                location = "ایران",
-                isOnline = true,
-                knownCount = 0,
-                storyTitle = defaultShop,
-                storyText = "غرفه رسمی و ثبت‌شده در بازار معتمدین کاسبان",
-                reviewsCount = 0,
-                reviewsSummary = "",
-                products = emptyList(),
-                isKnownByUser = false
-            )
-            _merchants.value = listOf(userMerchant)
-        } else {
-            _merchants.value = emptyList()
-        }
-
-        // Clean zero balance for newly registered account
-        _walletBalance.value = 0L
-        _walletTransactions.value = emptyList()
-
-        prefs.edit()
-            .putBoolean("user_logged_in", true)
-            .putString("user_display_name", finalName)
-            .putString("user_phone", finalPhone)
-            .putString("user_role", finalRole)
-            .putString("user_shop_title", defaultShop)
-            .putString("user_bio", "")
-            .putString("user_location", "ایران")
-            .remove("user_avatar_uri")
-            .putString("registered_referral_code", finalRef)
-            .putLong("wallet_balance", 0L)
-            .putBoolean("merchant_page_active", (finalRole == "کاسب و تولیدکننده"))
-            .apply()
-    }
-
-    fun logout() {
-        prefs.edit().clear().apply()
-        _isUserLoggedIn.value = false
-        _userDisplayName.value = ""
-        _userPhone.value = ""
-        _userRole.value = "خریدار معتمد"
-        _userShopTitle.value = ""
-        _userBio.value = ""
-        _userAvatarUri.value = null
-        _walletBalance.value = 0L
-        _walletTransactions.value = emptyList()
-        _myProducts.value = emptyList()
-        _userAddresses.value = emptyList()
-        _mutualFamiliars.value = emptyList()
-        _merchants.value = emptyList()
-        _currentScreen.value = KasebanScreen.MERCHANTS
-    }
-
-    // Profile & Avatar Editing
     fun updateUserProfile(
         name: String,
         shopTitle: String,
@@ -597,14 +805,22 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
         _userPhone.value = finalPhone
         _userAvatarUri.value = avatarUri
 
-        prefs.edit()
-            .putString("user_display_name", finalName)
-            .putString("user_shop_title", finalShop)
-            .putString("user_bio", finalBio)
-            .putString("user_location", finalLoc)
-            .putString("user_phone", finalPhone)
-            .putString("user_avatar_uri", avatarUri)
-            .apply()
+        // Update database accounts
+        val accounts = database.getAllAccounts().map {
+            if (it.phone == _userPhone.value) {
+                it.copy(name = finalName, shopTitle = finalShop, bio = finalBio, location = finalLoc)
+            } else it
+        }
+        database.saveAccounts(accounts)
+
+        // Update booth if existing
+        val booth = getMyBooth()
+        if (booth != null) {
+            val updatedBooth = booth.copy(name = finalName, title = finalShop, location = finalLoc, storyText = finalBio)
+            val updatedList = _merchants.value.map { if (it.id == updatedBooth.id) updatedBooth else it }
+            _merchants.value = updatedList
+            database.saveMerchants(updatedList)
+        }
     }
 
     fun updateUserAvatar(uri: String?) {

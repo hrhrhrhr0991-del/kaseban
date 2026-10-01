@@ -17,6 +17,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import com.example.ui.components.BoothManagementDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -55,6 +56,9 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -141,7 +145,7 @@ fun MerchantsScreen(
     var showMutualDialog by remember { mutableStateOf(false) }
     var showReviewsDialog by remember { mutableStateOf(false) }
     var showWriteReviewDialog by remember { mutableStateOf(false) }
-    var showAddMerchantDialog by remember { mutableStateOf(false) }
+    var showBoothManagementDialog by remember { mutableStateOf(false) }
     var isCategoriesExpanded by remember { mutableStateOf(false) }
 
     val categories = remember {
@@ -400,13 +404,14 @@ fun MerchantsScreen(
                                 fontSize = 15.sp
                             )
 
-                            // Add New Shop Button
+                            // Manage / Add Shop Button
+                            val myBooth = viewModel.getMyBooth()
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(Color(0xFFE0F2FE))
                                     .border(1.dp, Color(0x6638BDF8), RoundedCornerShape(12.dp))
-                                    .clickable { showAddMerchantDialog = true }
+                                    .clickable { showBoothManagementDialog = true }
                                     .padding(horizontal = 10.dp, vertical = 6.dp)
                             ) {
                                 Row(
@@ -414,16 +419,16 @@ fun MerchantsScreen(
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Add,
+                                        imageVector = if (myBooth != null) Icons.Default.Storefront else Icons.Default.Add,
                                         contentDescription = null,
                                         tint = BluePrimary,
                                         modifier = Modifier.size(15.dp)
                                     )
                                     Text(
-                                        text = "ثبت غرفه جدید",
+                                        text = if (myBooth != null) "مدیریت غرفه من" else "راه‌اندازی غرفه",
                                         fontFamily = VazirmatnFontFamily,
-                                        fontSize = 11.5.sp,
                                         fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
                                         color = BluePrimary
                                     )
                                 }
@@ -465,12 +470,17 @@ fun MerchantsScreen(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         modifier = Modifier.padding(top = 4.dp)
                                     ) {
+                                        val myBooth = viewModel.getMyBooth()
                                         Button(
-                                            onClick = { showAddMerchantDialog = true },
+                                            onClick = { showBoothManagementDialog = true },
                                             colors = ButtonDefaults.buttonColors(containerColor = PastelMintPrimary),
                                             shape = RoundedCornerShape(12.dp)
                                         ) {
-                                            Text(text = "➕ ثبت غرفه در بازار", fontFamily = VazirmatnFontFamily, color = Color.White)
+                                            Text(
+                                                text = if (myBooth != null) "🏪 مدیریت غرفه من" else "➕ ایجاد و مدیریت غرفه",
+                                                fontFamily = VazirmatnFontFamily,
+                                                color = Color.White
+                                            )
                                         }
 
                                         if (selectedCategory != null) {
@@ -584,15 +594,11 @@ fun MerchantsScreen(
             )
         }
 
-        // Add Merchant Dialog
-        if (showAddMerchantDialog) {
-            AddMerchantDialog(
-                onDismiss = { showAddMerchantDialog = false },
-                onAddMerchant = { name, title, specialty, location, desc, products ->
-                    viewModel.registerNewMerchant(name, title, specialty, location, desc, products)
-                    showAddMerchantDialog = false
-                    Toast.makeText(context, "غرفه جدید با موفقیت ثبت گردید", Toast.LENGTH_SHORT).show()
-                }
+        // Booth Management Dashboard Dialog
+        if (showBoothManagementDialog) {
+            BoothManagementDialog(
+                onDismiss = { showBoothManagementDialog = false },
+                viewModel = viewModel
             )
         }
     }
@@ -1267,7 +1273,7 @@ private fun MerchantDetailSheet(
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Text(
-                                        text = merchant.storyTitle,
+                                        text = merchant.storyTitle.ifBlank { "درباره غرفه و دسترنج" },
                                         color = TextPrimary,
                                         fontFamily = VazirmatnFontFamily,
                                         fontSize = 14.sp,
@@ -1276,12 +1282,194 @@ private fun MerchantDetailSheet(
                                 }
 
                                 Text(
-                                    text = merchant.storyText,
+                                    text = merchant.storyText.ifBlank { "غرفه معتبر و ثبت‌شده در سامانه معاملات مستقیم بازار کاسبان" },
                                     color = TextSecondary,
                                     fontFamily = VazirmatnFontFamily,
                                     fontSize = 12.sp,
                                     lineHeight = 21.sp
                                 )
+
+                                if (merchant.address.isNotBlank()) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.LocationOn,
+                                            contentDescription = null,
+                                            tint = TextMuted,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Text(
+                                            text = "نشانی: ${merchant.address}",
+                                            color = TextMuted,
+                                            fontFamily = VazirmatnFontFamily,
+                                            fontSize = 11.5.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Working Hours, Shipping & Guarantee Policies
+                    item {
+                        GlassCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            backgroundColor = SurfaceGlassCard,
+                            borderColor = GlassBorderSubtle
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.VerifiedUser,
+                                        contentDescription = null,
+                                        tint = Color(0xFF059669),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = "شرایط ارسال، ساعت کاری و ضمانت",
+                                        color = TextPrimary,
+                                        fontFamily = VazirmatnFontFamily,
+                                        fontSize = 13.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AccessTime,
+                                        contentDescription = null,
+                                        tint = TextMuted,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = "ساعت پاسخگویی: ${merchant.workHours}",
+                                        color = TextSecondary,
+                                        fontFamily = VazirmatnFontFamily,
+                                        fontSize = 11.5.sp
+                                    )
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.LocalShipping,
+                                        contentDescription = null,
+                                        tint = TextMuted,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = "روش‌های ارسال: ${merchant.deliveryMethods}" + (if (merchant.freeShippingThreshold > 0) " (ارسال رایگان از ${PersianUtils.formatPrice(merchant.freeShippingThreshold)})" else ""),
+                                        color = TextSecondary,
+                                        fontFamily = VazirmatnFontFamily,
+                                        fontSize = 11.5.sp
+                                    )
+                                }
+
+                                if (merchant.guaranteePolicy.isNotBlank()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Color(0xFFDCFCE7))
+                                            .padding(8.dp)
+                                    ) {
+                                        Text(
+                                            text = "🛡️ ${merchant.guaranteePolicy}",
+                                            color = Color(0xFF15803D),
+                                            fontFamily = VazirmatnFontFamily,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Posts & Stories Section
+                    if (merchant.posts.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = "📸 پست‌ها و اخبار دسترنج غرفه",
+                                color = TextPrimary,
+                                fontFamily = VazirmatnFontFamily,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(top = 6.dp)
+                            )
+                        }
+
+                        items(merchant.posts, key = { it.id }) { post ->
+                            GlassCard(
+                                modifier = Modifier.fillMaxWidth(),
+                                backgroundColor = SurfaceGlassCard,
+                                borderColor = GlassBorderSubtle
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = post.title.ifBlank { "خبر دسترنج" },
+                                            fontFamily = VazirmatnFontFamily,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = BluePrimary
+                                        )
+                                        Text(
+                                            text = post.date,
+                                            fontFamily = VazirmatnFontFamily,
+                                            fontSize = 10.5.sp,
+                                            color = TextMuted
+                                        )
+                                    }
+
+                                    if (post.imageUri != null) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(150.dp)
+                                                .clip(RoundedCornerShape(12.dp))
+                                        ) {
+                                            AsyncImage(
+                                                model = post.imageUri,
+                                                contentDescription = post.title,
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
+                                    }
+
+                                    Text(
+                                        text = post.text,
+                                        fontFamily = VazirmatnFontFamily,
+                                        fontSize = 12.sp,
+                                        color = TextPrimary,
+                                        lineHeight = 20.sp
+                                    )
+                                }
                             }
                         }
                     }

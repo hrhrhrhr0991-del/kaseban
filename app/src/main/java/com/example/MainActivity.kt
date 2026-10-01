@@ -77,13 +77,7 @@ fun KasebanApp(
     val colors = AppTheme.colors
 
     if (!isUserLoggedIn) {
-        AuthScreen(
-            onAuthComplete = { name, phone, referral, role ->
-                viewModel.completeAuth(name, phone, referral, role)
-            },
-            viewModel = viewModel,
-            onGuestLogin = { viewModel.loginAsGuest() }
-        )
+        AuthScreen(viewModel = viewModel)
         return
     }
 

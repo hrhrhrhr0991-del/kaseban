@@ -5,7 +5,10 @@ data class MerchantProduct(
     val title: String,
     val weight: String,
     val price: Long,
-    val isAvailable: Boolean = true
+    val originalPrice: Long = 0L,
+    val isAvailable: Boolean = true,
+    val category: String = "عمومی",
+    val description: String = ""
 )
 
 data class BoothPost(
@@ -36,9 +39,18 @@ data class Merchant(
     val phone: String = "",
     val avatarEmoji: String = "🏪",
     val avatarUri: String? = null,
+    val bannerUri: String? = null,
     val specialty: String,
     val location: String,
+    val address: String = "",
     val isOnline: Boolean = true,
+    val workHours: String = "همه‌روزه از ۸ صبح تا ۱۰ شب",
+    val deliveryMethods: String = "پست پیشتاز، تیپاکس، پیک شهری",
+    val freeShippingThreshold: Long = 0L,
+    val minOrderAmount: Long = 0L,
+    val guaranteePolicy: String = "ضمانت اصالت و بازگشت کامل وجه در صورت عدم رضایت",
+    val socialTelegram: String = "",
+    val socialWhatsapp: String = "",
     val knownCount: Int = 0,
     val knownByMutual: String? = null,
     val storyTitle: String = "",
