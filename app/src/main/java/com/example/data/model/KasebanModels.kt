@@ -1,31 +1,34 @@
 package com.example.data.model
 
 data class MerchantProduct(
-    val id: String,
-    val title: String,
-    val weight: String,
-    val price: Long,
+    val id: String = "",
+    val title: String = "",
+    val weight: String = "",
+    val price: Long = 0L,
     val originalPrice: Long = 0L,
     val isAvailable: Boolean = true,
     val category: String = "عمومی",
-    val description: String = ""
+    val description: String = "",
+    val imageUrl: String = "",
+    val merchantId: String = ""
 )
 
 data class BoothPost(
-    val id: String,
-    val merchantId: String,
+    val id: String = "",
+    val merchantId: String = "",
     val title: String = "",
-    val text: String,
+    val text: String = "",
     val imageUri: String? = null,
     val date: String = "هم‌اکنون",
     val likesCount: Int = 0
 )
 
 data class UserAccount(
-    val phone: String,
-    val pin: String,
-    val name: String,
-    val role: String,
+    val id: String = "",
+    val phone: String = "",
+    val pin: String = "",
+    val name: String = "",
+    val role: String = "خریدار معتمد",
     val referralCode: String = "",
     val shopTitle: String = "",
     val bio: String = "",
@@ -33,15 +36,16 @@ data class UserAccount(
 )
 
 data class Merchant(
-    val id: String,
-    val name: String,
-    val title: String,
+    val id: String = "",
+    val ownerId: String = "",
+    val name: String = "",
+    val title: String = "",
     val phone: String = "",
     val avatarEmoji: String = "🏪",
     val avatarUri: String? = null,
     val bannerUri: String? = null,
-    val specialty: String,
-    val location: String,
+    val specialty: String = "محصولات روستایی و سنتی",
+    val location: String = "ایران",
     val address: String = "",
     val isOnline: Boolean = true,
     val workHours: String = "همه‌روزه از ۸ صبح تا ۱۰ شب",
@@ -57,6 +61,12 @@ data class Merchant(
     val storyText: String = "",
     val reviewsCount: Int = 0,
     val reviewsSummary: String = "",
+    val rating: Double = 5.0,
+    val isVerified: Boolean = false,
+    val isPinned: Boolean = false,
+    val hasReturnGuarantee: Boolean = true,
+    val isEcoFriendly: Boolean = true,
+    val isOrganicCertified: Boolean = true,
     val products: List<MerchantProduct> = emptyList(),
     val posts: List<BoothPost> = emptyList(),
     var isKnownByUser: Boolean = false

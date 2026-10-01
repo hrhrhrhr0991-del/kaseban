@@ -38,6 +38,24 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import android.app.Activity
+import android.util.Log
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.Companion.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+import com.google.firebase.Firebase
+import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.auth
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
+import com.example.R
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -96,6 +114,9 @@ fun AuthScreen(
 
     var isPinVisible by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isGoogleLoading by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    val credentialManager = remember { CredentialManager.create(context) }
 
     Box(
         modifier = modifier
@@ -613,7 +634,7 @@ fun AuthScreen(
                                 OutlinedTextField(
                                     value = pinNumber,
                                     onValueChange = {
-                                        if (it.length <= 4) {
+                                        if (it.length <= 8) {
                                             pinNumber = it.filter { ch -> ch.isDigit() }
                                             errorMessage = null
                                         }
@@ -708,6 +729,69 @@ fun AuthScreen(
                                     contentDescription = null,
                                     tint = Color.White,
                                     modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+
+                        // Google Sign-In & Cloud Sync Button
+                        OutlinedButton(
+                            onClick = {
+                                val clientId = try {
+                                    context.getString(R.string.default_web_client_id)
+                                } catch (e: Exception) {
+                                    null
+                                }
+                                if (clientId.isNullOrBlank()) {
+                                    Toast.makeText(context, "پیکربندی حساب گوگل در دسترس نیست.", Toast.LENGTH_SHORT).show()
+                                    return@OutlinedButton
+                                }
+                                isGoogleLoading = true
+                                val signInOption = GetSignInWithGoogleOption.Builder(serverClientId = clientId).build()
+                                val request = GetCredentialRequest.Builder().addCredentialOption(signInOption).build()
+
+                                coroutineScope.launch {
+                                    try {
+                                        val result = credentialManager.getCredential(context as Activity, request)
+                                        val credential = result.credential
+                                        if (credential is CustomCredential && credential.type == TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+                                            val googleIdToken = GoogleIdTokenCredential.createFrom(credential.data).idToken
+                                            val authCredential = GoogleAuthProvider.getCredential(googleIdToken, null)
+                                            Firebase.auth.signInWithCredential(authCredential).await()
+                                            viewModel?.handleGoogleSignInSuccess()
+                                            isGoogleLoading = false
+                                            Toast.makeText(context, "ورود با حساب گوگل با موفقیت انجام شد.", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            isGoogleLoading = false
+                                        }
+                                    } catch (e: GetCredentialCancellationException) {
+                                        Log.w("Auth", "Google Sign-In dismissed: ${e.message}", e)
+                                        isGoogleLoading = false
+                                    } catch (e: Exception) {
+                                        Log.e("Auth", "Google Sign-In failed", e)
+                                        isGoogleLoading = false
+                                        Toast.makeText(context, "ورود با گوگل: ${e.localizedMessage ?: "خطا"}", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            enabled = !isGoogleLoading
+                        ) {
+                            if (isGoogleLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = colors.primary
+                                )
+                            } else {
+                                Text(
+                                    text = "🌐 ورود و همگام‌سازی ابری با حساب گوگل",
+                                    fontFamily = PeydaFontFamily,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp,
+                                    color = colors.primary
                                 )
                             }
                         }

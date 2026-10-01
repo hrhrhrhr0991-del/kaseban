@@ -350,9 +350,20 @@ val StatusPending = Color(0xFFEAB308)
 val StatusInfo = Color(0xFF0284C7)
 val StatusError = Color(0xFFDC2626)
 
-val TextPrimary = Color(0xFF0F172A)
-val TextSecondary = Color(0xFF334155)
-val TextMuted = Color(0xFF64748B)
+val TextPrimary: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = AppTheme.colors.textPrimary
+
+val TextSecondary: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = AppTheme.colors.textSecondary
+
+val TextMuted: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = AppTheme.colors.textMuted
 
 val BlueGlassGradient = Brush.verticalGradient(listOf(Color(0x8CFFFFFF), Color(0x66ECFDF5)))
 val PastelGradient = Brush.horizontalGradient(listOf(Color(0xFF059669), Color(0xFF0284C7)))

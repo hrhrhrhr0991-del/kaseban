@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Kaseban"
+rootProject.name = "kaseban"
 
 include(":app")

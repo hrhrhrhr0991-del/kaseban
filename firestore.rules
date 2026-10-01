@@ -1,0 +1,120 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -------------------------------------------------------------
+    // Validation Helper Functions
+    // -------------------------------------------------------------
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidUserAccount(data) {
+      return data.id is string
+        && data.phone is string && data.phone.size() >= 10 && data.phone.size() <= 15
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.role is string && data.role.size() > 0
+        && (!('pin' in data) || (data.pin is string && data.pin.size() <= 10))
+        && (!('shopTitle' in data) || (data.shopTitle is string && data.shopTitle.size() <= 150))
+        && (!('referralCode' in data) || (data.referralCode is string && data.referralCode.size() <= 50))
+        && (!('createdAt' in data) || (data.createdAt is timestamp && data.createdAt <= request.time))
+        && (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidMerchant(data) {
+      return data.id is string
+        && data.ownerId is string && data.ownerId == request.auth.uid
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 150
+        && data.phone is string && data.phone.size() >= 10 && data.phone.size() <= 20
+        && data.specialty is string && data.specialty.size() <= 150
+        && data.location is string && data.location.size() <= 150
+        && (!('address' in data) || (data.address is string && data.address.size() <= 300))
+        && (!('workHours' in data) || (data.workHours is string && data.workHours.size() <= 150))
+        && (!('deliveryMethods' in data) || (data.deliveryMethods is string && data.deliveryMethods.size() <= 200))
+        && (!('story' in data) || (data.story is string && data.story.size() <= 2000))
+        && (!('avatarEmoji' in data) || (data.avatarEmoji is string && data.avatarEmoji.size() <= 30))
+        && (!('avatarUri' in data) || (data.avatarUri is string && data.avatarUri.size() <= 500000))
+        && (!('bannerUri' in data) || (data.bannerUri is string && data.bannerUri.size() <= 500000))
+        && (!('instagram' in data) || (data.instagram is string && data.instagram.size() <= 100))
+        && (!('telegram' in data) || (data.telegram is string && data.telegram.size() <= 100))
+        && (!('rating' in data) || (data.rating is number && data.rating >= 0 && data.rating <= 5))
+        && (!('reviewCount' in data) || (data.reviewCount is number && data.reviewCount >= 0))
+        && (!('isOnline' in data) || (data.isOnline is bool))
+        && (!('isVerified' in data) || (data.isVerified is bool))
+        && (!('hasReturnGuarantee' in data) || (data.hasReturnGuarantee is bool))
+        && (!('isEcoFriendly' in data) || (data.isEcoFriendly is bool))
+        && (!('isOrganicCertified' in data) || (data.isOrganicCertified is bool))
+        && (!('createdAt' in data) || (data.createdAt is timestamp && data.createdAt <= request.time))
+        && (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidMerchantProduct(data, merchantId) {
+      return data.id is string
+        && data.merchantId is string && data.merchantId == merchantId
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 150
+        && data.price is number && data.price >= 0
+        && (!('weight' in data) || (data.weight is string && data.weight.size() <= 100))
+        && (!('originalPrice' in data) || (data.originalPrice is number && data.originalPrice >= 0))
+        && (!('isAvailable' in data) || (data.isAvailable is bool))
+        && (!('category' in data) || (data.category is string && data.category.size() <= 100))
+        && (!('description' in data) || (data.description is string && data.description.size() <= 1000))
+        && (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 500000))
+        && (!('createdAt' in data) || (data.createdAt is timestamp && data.createdAt <= request.time))
+        && (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidBoothPost(data, merchantId) {
+      return data.id is string
+        && data.merchantId is string && data.merchantId == merchantId
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 150
+        && data.description is string && data.description.size() <= 2000
+        && (!('imageUri' in data) || (data.imageUri is string && data.imageUri.size() <= 500000))
+        && (!('likes' in data) || (data.likes is number && data.likes >= 0))
+        && (!('createdAt' in data) || (data.createdAt is timestamp && data.createdAt <= request.time))
+        && (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    // -------------------------------------------------------------
+    // Collections
+    // -------------------------------------------------------------
+
+    // User Accounts
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUserAccount(request.resource.data);
+      allow update: if isOwner(userId) && isValidUserAccount(request.resource.data);
+      allow delete: if isOwner(userId);
+    }
+
+    // Merchants (Public Marketplace Catalog)
+    match /merchants/{merchantId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(merchantId) && isValidMerchant(request.resource.data);
+      allow update: if (isOwner(merchantId) || (resource != null && resource.data.ownerId == request.auth.uid))
+                    && isValidMerchant(request.resource.data);
+      allow delete: if isOwner(merchantId) || (resource != null && resource.data.ownerId == request.auth.uid);
+
+      // Subcollection: Products
+      match /products/{productId} {
+        allow read: if isAuthenticated();
+        allow create: if isOwner(merchantId) && isValidMerchantProduct(request.resource.data, merchantId);
+        allow update: if isOwner(merchantId) && isValidMerchantProduct(request.resource.data, merchantId);
+        allow delete: if isOwner(merchantId);
+      }
+
+      // Subcollection: Posts / Stories
+      match /posts/{postId} {
+        allow read: if isAuthenticated();
+        allow create: if isOwner(merchantId) && isValidBoothPost(request.resource.data, merchantId);
+        allow update: if isOwner(merchantId) && isValidBoothPost(request.resource.data, merchantId);
+        allow delete: if isOwner(merchantId);
+      }
+    }
+  }
+}

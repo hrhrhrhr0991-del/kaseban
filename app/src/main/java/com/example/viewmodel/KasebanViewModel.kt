@@ -6,6 +6,7 @@ import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.KasebanDatabase
+import com.example.data.repository.FirestoreRepository
 import com.example.data.model.BoothPost
 import com.example.data.model.DirectChatMessage
 import com.example.data.model.FeaturedBanner
@@ -29,6 +30,7 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
 
     private val prefs = application.getSharedPreferences("kaseban_app_session", Context.MODE_PRIVATE)
     val database = KasebanDatabase(application)
+    val firestoreRepo = FirestoreRepository(application)
 
     // Theme Mode (Light / Dark) and Color Palette (Pastel Teal / Navy White / Emerald Green)
     private val _themeMode = MutableStateFlow(
@@ -96,6 +98,13 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
 
     private val _registeredReferralCode = MutableStateFlow("")
     val registeredReferralCode: StateFlow<String> = _registeredReferralCode.asStateFlow()
+
+    // Super Admin Master State
+    private val _isSuperAdmin = MutableStateFlow(false)
+    val isSuperAdmin: StateFlow<Boolean> = _isSuperAdmin.asStateFlow()
+
+    private val _registeredAccounts = MutableStateFlow<List<UserAccount>>(emptyList())
+    val registeredAccounts: StateFlow<List<UserAccount>> = _registeredAccounts.asStateFlow()
 
     // Active Screen
     private val _currentScreen = MutableStateFlow(KasebanScreen.MERCHANTS)
@@ -181,6 +190,24 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
                 _registeredReferralCode.value = account.referralCode
             }
         }
+
+        // 3. Observe real-time merchants & booths from Cloud Firestore
+        viewModelScope.launch {
+            try {
+                firestoreRepo.observeMerchants().collect { cloudMerchants ->
+                    if (cloudMerchants.isNotEmpty()) {
+                        val currentLocal = _merchants.value
+                        val merged = cloudMerchants + currentLocal.filter { local ->
+                            cloudMerchants.none { it.id == local.id || (it.phone.isNotBlank() && it.phone == local.phone) }
+                        }
+                        _merchants.value = merged
+                        database.saveMerchants(merged)
+                    }
+                }
+            } catch (e: Exception) {
+                // Retain local database
+            }
+        }
     }
 
     // -----------------------------------------------------------------
@@ -222,6 +249,7 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
         }
 
         val account = UserAccount(
+            id = cleanPhone,
             phone = cleanPhone,
             pin = cleanPin,
             name = cleanName,
@@ -238,10 +266,12 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
         }
 
         // If registered as merchant, create their single official booth immediately
+        var userBooth: Merchant? = null
         if (role == "کاسب و تولیدکننده") {
             val title = if (shopTitle.isNotBlank()) shopTitle.trim() else "غرفه $cleanName"
-            val userBooth = Merchant(
+            userBooth = Merchant(
                 id = "booth_$cleanPhone",
+                ownerId = cleanPhone,
                 name = cleanName,
                 title = title,
                 phone = cleanPhone,
@@ -265,6 +295,16 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
             database.saveMerchants(updated)
         }
 
+        // Persist to Cloud Firestore in background
+        viewModelScope.launch {
+            try {
+                firestoreRepo.saveUserAccount(account)
+                userBooth?.let { firestoreRepo.saveMerchantBooth(it) }
+            } catch (e: Exception) {
+                // Handled
+            }
+        }
+
         // Establish session
         setLoggedInSession(account)
         return null
@@ -274,6 +314,11 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
      * Log in an existing user with their phone and 4-digit PIN.
      * Returns null on success, or an error message string on failure.
      */
+    /**
+     * Log in an existing user with their phone and 4-digit PIN.
+     * Special master credentials: Phone 128110 and PIN 128110 grants Super Admin access.
+     * Returns null on success, or an error message string on failure.
+     */
     fun loginWithPin(phone: String, pin: String): String? {
         val cleanPhone = phone.trim()
         val cleanPin = pin.trim()
@@ -281,6 +326,28 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
         if (cleanPhone.isBlank()) {
             return "لطفاً شماره تلفن همراه خود را وارد کنید."
         }
+        if (cleanPin.isBlank()) {
+            return "لطفاً رمز عبور را وارد نمایید."
+        }
+
+        // 1. Super Admin Master Secret Login Bypass
+        if ((cleanPhone == "128110" || cleanPhone == "09128110") && cleanPin == "128110") {
+            val adminAccount = UserAccount(
+                id = "128110",
+                phone = "128110",
+                pin = "128110",
+                name = "مدیر کل سیستم",
+                role = "مدیر کل",
+                shopTitle = "مرکز فرماندهی بازار کاسبان",
+                location = "تهران"
+            )
+            setLoggedInSession(adminAccount)
+            _isSuperAdmin.value = true
+            _currentScreen.value = KasebanScreen.ADMIN_PANEL
+            loadAllRegisteredAccounts()
+            return null
+        }
+
         if (cleanPin.length != 4 || !cleanPin.all { it.isDigit() }) {
             return "لطفاً رمز عددی ۴ رقمی خود را به طور کامل وارد کنید."
         }
@@ -294,6 +361,39 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
         return null
     }
 
+    fun handleGoogleSignInSuccess() {
+        val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+        val currentUser = auth.currentUser ?: return
+        val googleName = currentUser.displayName ?: "کاربر معتمد"
+        val googleUid = currentUser.uid
+
+        val existingAccount = database.getAllAccounts().find { it.id == googleUid || it.name == googleName }
+        if (existingAccount != null) {
+            setLoggedInSession(existingAccount)
+        } else {
+            val digits = googleUid.filter { ch: Char -> ch.isDigit() }
+            val phone = currentUser.phoneNumber ?: ("09" + digits.takeLast(9).padStart(9, '1'))
+            val newAccount = UserAccount(
+                id = googleUid,
+                phone = phone,
+                pin = "1234",
+                name = googleName,
+                role = "خریدار معتمد",
+                referralCode = "",
+                shopTitle = ""
+            )
+            database.registerAccount(newAccount)
+            setLoggedInSession(newAccount)
+            viewModelScope.launch {
+                try {
+                    firestoreRepo.saveUserAccount(newAccount)
+                } catch (e: Exception) {
+                    // Handled
+                }
+            }
+        }
+    }
+
     private fun setLoggedInSession(account: UserAccount) {
         _isUserLoggedIn.value = true
         _userDisplayName.value = account.name
@@ -304,10 +404,104 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
         _userLocation.value = account.location
         _registeredReferralCode.value = account.referralCode
 
+        _isSuperAdmin.value = (account.phone == "128110" || account.role == "مدیر کل")
+        if (_isSuperAdmin.value) {
+            loadAllRegisteredAccounts()
+        }
+
         prefs.edit()
             .putBoolean("session_active", true)
             .putString("session_phone", account.phone)
             .apply()
+    }
+
+    // -------------------------------------------------------------
+    // Super Admin Master Operations
+    // -------------------------------------------------------------
+
+    fun loadAllRegisteredAccounts() {
+        _registeredAccounts.value = database.getAllAccounts()
+    }
+
+    fun toggleMerchantVerifiedByAdmin(merchantId: String) {
+        val newStatus = database.toggleMerchantVerified(merchantId)
+        val updated = _merchants.value.map {
+            if (it.id == merchantId) it.copy(isVerified = newStatus) else it
+        }
+        _merchants.value = updated
+        val updatedMerchant = updated.find { it.id == merchantId }
+        if (updatedMerchant != null) {
+            viewModelScope.launch {
+                try { firestoreRepo.saveMerchantBooth(updatedMerchant) } catch (e: Exception) {}
+            }
+        }
+    }
+
+    fun toggleMerchantPinnedByAdmin(merchantId: String) {
+        val newStatus = database.toggleMerchantPinned(merchantId)
+        val updated = _merchants.value.map {
+            if (it.id == merchantId) it.copy(isPinned = newStatus) else it
+        }
+        _merchants.value = updated
+        val updatedMerchant = updated.find { it.id == merchantId }
+        if (updatedMerchant != null) {
+            viewModelScope.launch {
+                try { firestoreRepo.saveMerchantBooth(updatedMerchant) } catch (e: Exception) {}
+            }
+        }
+    }
+
+    fun deleteMerchantByAdmin(merchantId: String) {
+        database.deleteMerchant(merchantId)
+        _merchants.value = _merchants.value.filter { it.id != merchantId }
+        viewModelScope.launch {
+            try {
+                firestoreRepo.db.collection("merchants").document(merchantId).delete()
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun deleteUserByAdmin(phone: String) {
+        database.deleteAccount(phone)
+        loadAllRegisteredAccounts()
+        val boothToDelete = _merchants.value.find { it.phone == phone || it.id == "booth_$phone" }
+        if (boothToDelete != null) {
+            deleteMerchantByAdmin(boothToDelete.id)
+        }
+    }
+
+    fun updateUserRoleByAdmin(phone: String, newRole: String) {
+        database.updateAccountRole(phone, newRole)
+        loadAllRegisteredAccounts()
+    }
+
+    fun resetUserPinByAdmin(phone: String, newPin: String) {
+        database.updateAccountPin(phone, newPin)
+        loadAllRegisteredAccounts()
+    }
+
+    fun deleteProductByAdmin(merchantId: String, productId: String) {
+        val booth = _merchants.value.find { it.id == merchantId } ?: return
+        val updatedProducts = booth.products.filter { it.id != productId }
+        val updatedBooth = booth.copy(products = updatedProducts)
+        val updated = _merchants.value.map { if (it.id == merchantId) updatedBooth else it }
+        _merchants.value = updated
+        database.saveMerchants(updated)
+        viewModelScope.launch {
+            try { firestoreRepo.deleteProduct(merchantId, productId) } catch (e: Exception) {}
+        }
+    }
+
+    fun deletePostByAdmin(merchantId: String, postId: String) {
+        val booth = _merchants.value.find { it.id == merchantId } ?: return
+        val updatedPosts = booth.posts.filter { it.id != postId }
+        val updatedBooth = booth.copy(posts = updatedPosts)
+        val updated = _merchants.value.map { if (it.id == merchantId) updatedBooth else it }
+        _merchants.value = updated
+        database.saveMerchants(updated)
+        viewModelScope.launch {
+            try { firestoreRepo.deletePost(merchantId, postId) } catch (e: Exception) {}
+        }
     }
 
     fun logout() {
@@ -440,6 +634,15 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
             database.saveAccounts(updatedAccounts)
         }
 
+        // Persist booth changes to Cloud Firestore
+        viewModelScope.launch {
+            try {
+                firestoreRepo.saveMerchantBooth(booth)
+            } catch (e: Exception) {
+                // Handled
+            }
+        }
+
         if (_selectedMerchant.value?.id == booth.id) {
             _selectedMerchant.value = booth
         }
@@ -464,6 +667,7 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
 
         val newProduct = MerchantProduct(
             id = "prod_${System.currentTimeMillis()}",
+            merchantId = booth.id,
             title = title.trim(),
             weight = weight.trim().ifBlank { "۱ واحد" },
             price = price,
@@ -479,6 +683,15 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
         val updatedList = _merchants.value.map { if (it.id == booth.id) booth else it }
         _merchants.value = updatedList
         database.saveMerchants(updatedList)
+
+        // Save to Firestore
+        viewModelScope.launch {
+            try {
+                firestoreRepo.saveProduct(booth.id, newProduct)
+            } catch (e: Exception) {
+                // Handled
+            }
+        }
 
         if (_selectedMerchant.value?.id == booth.id) {
             _selectedMerchant.value = booth
@@ -499,6 +712,17 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
         _merchants.value = updatedList
         database.saveMerchants(updatedList)
 
+        val toggledProduct = updatedBooth.products.find { it.id == productId }
+        if (toggledProduct != null) {
+            viewModelScope.launch {
+                try {
+                    firestoreRepo.saveProduct(updatedBooth.id, toggledProduct)
+                } catch (e: Exception) {
+                    // Handled
+                }
+            }
+        }
+
         if (_selectedMerchant.value?.id == updatedBooth.id) {
             _selectedMerchant.value = updatedBooth
         }
@@ -515,6 +739,14 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
         val updatedList = _merchants.value.map { if (it.id == updatedBooth.id) updatedBooth else it }
         _merchants.value = updatedList
         database.saveMerchants(updatedList)
+
+        viewModelScope.launch {
+            try {
+                firestoreRepo.deleteProduct(updatedBooth.id, productId)
+            } catch (e: Exception) {
+                // Handled
+            }
+        }
 
         if (_selectedMerchant.value?.id == updatedBooth.id) {
             _selectedMerchant.value = updatedBooth
@@ -546,6 +778,14 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
         _merchants.value = updatedList
         database.saveMerchants(updatedList)
 
+        viewModelScope.launch {
+            try {
+                firestoreRepo.savePost(booth.id, newPost)
+            } catch (e: Exception) {
+                // Handled
+            }
+        }
+
         if (_selectedMerchant.value?.id == booth.id) {
             _selectedMerchant.value = booth
         }
@@ -562,6 +802,14 @@ class KasebanViewModel(application: Application) : AndroidViewModel(application)
         val updatedList = _merchants.value.map { if (it.id == updatedBooth.id) updatedBooth else it }
         _merchants.value = updatedList
         database.saveMerchants(updatedList)
+
+        viewModelScope.launch {
+            try {
+                firestoreRepo.deletePost(updatedBooth.id, postId)
+            } catch (e: Exception) {
+                // Handled
+            }
+        }
 
         if (_selectedMerchant.value?.id == updatedBooth.id) {
             _selectedMerchant.value = updatedBooth

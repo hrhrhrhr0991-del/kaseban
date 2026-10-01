@@ -40,11 +40,14 @@ import androidx.compose.ui.unit.sp
 import com.example.ui.theme.AppTheme
 import com.example.ui.theme.VazirmatnFontFamily
 
+import androidx.compose.material.icons.filled.AdminPanelSettings
+
 enum class KasebanScreen(val title: String, val icon: ImageVector) {
     MERCHANTS("کاسبان", Icons.Default.Storefront),
     CHATS("گفتگوها", Icons.AutoMirrored.Filled.Chat),
     PROFILE("کیف پول و نمایه", Icons.Default.AccountBalanceWallet),
-    AI_ASSISTANT("مشاور", Icons.Default.SupportAgent)
+    AI_ASSISTANT("مشاور", Icons.Default.SupportAgent),
+    ADMIN_PANEL("پنل مدیریت کل", Icons.Default.AdminPanelSettings)
 }
 
 @Composable
@@ -52,9 +55,11 @@ fun KasebanBottomNav(
     currentScreen: KasebanScreen,
     onScreenSelected: (KasebanScreen) -> Unit,
     unreadChatsCount: Int = 0,
+    showAdminTab: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val colors = AppTheme.colors
+    val visibleScreens = if (showAdminTab) KasebanScreen.values().toList() else KasebanScreen.values().filter { it != KasebanScreen.ADMIN_PANEL }
 
     Box(
         modifier = modifier
@@ -82,7 +87,7 @@ fun KasebanBottomNav(
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                KasebanScreen.values().forEach { screen ->
+                visibleScreens.forEach { screen ->
                     val isSelected = currentScreen == screen
 
                     val iconTint by animateColorAsState(

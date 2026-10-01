@@ -36,11 +36,11 @@ fun MyApplicationTheme(
     val colorScheme = if (darkTheme) {
         darkColorScheme(
             primary = appColors.primary,
-            onPrimary = Color.Black,
+            onPrimary = Color.White,
             primaryContainer = appColors.primaryDark,
             onPrimaryContainer = appColors.textPrimary,
             secondary = appColors.secondary,
-            onSecondary = Color.Black,
+            onSecondary = Color.White,
             background = appColors.background,
             onBackground = appColors.textPrimary,
             surface = appColors.surface,

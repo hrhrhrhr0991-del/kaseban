@@ -36,6 +36,7 @@ import com.example.ui.screens.ChatScreen
 import com.example.ui.screens.KasebanAiAssistantScreen
 import com.example.ui.screens.MerchantsScreen
 import com.example.ui.screens.ProfileWalletScreen
+import com.example.ui.screens.SuperAdminMasterScreen
 import com.example.ui.theme.AppTheme
 import com.example.ui.theme.AppThemeMode
 import com.example.ui.theme.MyApplicationTheme
@@ -69,6 +70,7 @@ fun KasebanApp(
     viewModel: KasebanViewModel = viewModel()
 ) {
     val isUserLoggedIn by viewModel.isUserLoggedIn.collectAsState()
+    val isSuperAdmin by viewModel.isSuperAdmin.collectAsState()
     val currentScreen by viewModel.currentScreen.collectAsState()
     val selectedMerchant by viewModel.selectedMerchant.collectAsState()
     val activeChatMerchant by viewModel.activeChatMerchant.collectAsState()
@@ -158,7 +160,8 @@ fun KasebanApp(
                 KasebanBottomNav(
                     currentScreen = currentScreen,
                     onScreenSelected = { viewModel.navigateTo(it) },
-                    unreadChatsCount = 0
+                    unreadChatsCount = 0,
+                    showAdminTab = isSuperAdmin
                 )
             }
         ) { innerPadding ->
@@ -177,6 +180,7 @@ fun KasebanApp(
                         KasebanScreen.CHATS -> ChatScreen(viewModel = viewModel)
                         KasebanScreen.PROFILE -> ProfileWalletScreen(viewModel = viewModel)
                         KasebanScreen.AI_ASSISTANT -> KasebanAiAssistantScreen(viewModel = viewModel)
+                        KasebanScreen.ADMIN_PANEL -> SuperAdminMasterScreen(viewModel = viewModel)
                     }
                 }
             }

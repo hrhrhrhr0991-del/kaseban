@@ -58,6 +58,8 @@ import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Storefront
@@ -65,6 +67,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -88,6 +92,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import com.example.ui.theme.AppTheme
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -133,6 +138,7 @@ fun MerchantsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val colors = AppTheme.colors
     val merchantsTab by viewModel.merchantsTab.collectAsState()
     val merchants by viewModel.merchants.collectAsState()
     val selectedMerchant by viewModel.selectedMerchant.collectAsState()
@@ -162,8 +168,9 @@ fun MerchantsScreen(
     }
 
     val filteredMerchants = remember(merchants, selectedCategory) {
-        if (selectedCategory == null) merchants
+        val base = if (selectedCategory == null) merchants
         else merchants.filter { it.matchesCategory(selectedCategory!!) }
+        base.sortedByDescending { it.isPinned }
     }
 
     // UI presentation layer
@@ -497,15 +504,52 @@ fun MerchantsScreen(
                             }
                         }
                     } else {
-                        items(filteredMerchants) { merchant ->
-                            val index = filteredMerchants.indexOf(merchant)
-                            FluidAnimatedEntry(delayMillis = (index * 45).coerceAtMost(300)) {
-                                MerchantFeedCard(
-                                    merchant = merchant,
-                                    onKnowClick = { viewModel.toggleKnowMerchant(merchant.id) },
-                                    onCardClick = { viewModel.selectMerchant(merchant) },
-                                    onChatClick = { viewModel.openChatWithMerchant(merchant) }
-                                )
+                        if (filteredMerchants.isEmpty()) {
+                            item {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 20.dp),
+                                    shape = RoundedCornerShape(22.dp),
+                                    colors = CardDefaults.cardColors(containerColor = colors.surfaceCard)
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(24.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Text(text = "🌱", fontSize = 36.sp)
+                                        Text(
+                                            text = "هنوز غرفه‌ای در بازار ثبت نشده است",
+                                            fontFamily = VazirmatnFontFamily,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 15.sp,
+                                            color = TextPrimary
+                                        )
+                                        Text(
+                                            text = "اطلاعات کاملاً صفر است. شما می‌توانید اولین کاسب و تولیدکننده‌ای باشید که غرفه رسمی خود را در بازار ثبت می‌کند یا با ورود به پنل مدیریت کل (رمز ۱۲۸۱۱۰) غرفه‌ها را مدیریت کنید.",
+                                            fontFamily = VazirmatnFontFamily,
+                                            fontSize = 12.sp,
+                                            textAlign = TextAlign.Center,
+                                            color = TextSecondary,
+                                            lineHeight = 19.sp
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            items(filteredMerchants) { merchant ->
+                                val index = filteredMerchants.indexOf(merchant)
+                                FluidAnimatedEntry(delayMillis = (index * 45).coerceAtMost(300)) {
+                                    MerchantFeedCard(
+                                        merchant = merchant,
+                                        onKnowClick = { viewModel.toggleKnowMerchant(merchant.id) },
+                                        onCardClick = { viewModel.selectMerchant(merchant) },
+                                        onChatClick = { viewModel.openChatWithMerchant(merchant) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -725,11 +769,10 @@ private fun MerchantFeedCard(
     onCardClick: () -> Unit,
     onChatClick: () -> Unit
 ) {
+    val colors = AppTheme.colors
     GlassCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
-        backgroundColor = SurfaceGlassCard,
-        borderBrush = GlassBorderRefractionBrush,
         elevation = 3.dp,
         onClick = onCardClick
     ) {
@@ -748,6 +791,7 @@ private fun MerchantFeedCard(
                     specialty = merchant.specialty,
                     size = 52.dp,
                     isOnline = merchant.isOnline,
+                    isVerified = merchant.isVerified,
                     avatarUri = merchant.avatarUri
                 )
 
@@ -765,6 +809,41 @@ private fun MerchantFeedCard(
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold
                         )
+                        if (merchant.isVerified) {
+                            Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Default.Verified,
+                                contentDescription = "تیک آبی رسمی تایید هویت",
+                                tint = Color(0xFF0284C7),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        if (merchant.isPinned) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(if (AppTheme.colors.isDark) Color(0xFF78350F) else Color(0xFFFEF3C7))
+                                    .padding(horizontal = 5.dp, vertical = 1.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = androidx.compose.material.icons.Icons.Default.PushPin,
+                                        contentDescription = null,
+                                        tint = if (AppTheme.colors.isDark) Color(0xFFFBBF24) else Color(0xFFD97706),
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                    Text(
+                                        text = "برگزیده",
+                                        fontFamily = VazirmatnFontFamily,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (AppTheme.colors.isDark) Color(0xFFFDE68A) else Color(0xFFB45309)
+                                    )
+                                }
+                            }
+                        }
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
@@ -1009,6 +1088,7 @@ private fun MerchantDetailSheet(
                                 specialty = merchant.specialty,
                                 size = 64.dp,
                                 isOnline = merchant.isOnline,
+                                isVerified = merchant.isVerified,
                                 avatarUri = merchant.avatarUri
                             )
                             Spacer(modifier = Modifier.width(14.dp))
@@ -1534,7 +1614,7 @@ private fun MutualFamiliarsDialog(
                     .fillMaxWidth()
                     .shadow(16.dp, shape = RoundedCornerShape(26.dp), spotColor = Color(0x330D9488))
                     .clip(RoundedCornerShape(26.dp))
-                    .background(Color(0xF2FFFFFF))
+                    .background(AppTheme.colors.surfaceCard)
                     .border(1.2.dp, GlassBorderRefractionBrush, RoundedCornerShape(26.dp))
                     .padding(20.dp)
             ) {
@@ -1669,7 +1749,7 @@ private fun MerchantReviewsDialog(
                     .fillMaxWidth()
                     .shadow(16.dp, shape = RoundedCornerShape(26.dp), spotColor = Color(0x330D9488))
                     .clip(RoundedCornerShape(26.dp))
-                    .background(Color(0xF2FFFFFF))
+                    .background(AppTheme.colors.surfaceCard)
                     .border(1.2.dp, GlassBorderRefractionBrush, RoundedCornerShape(26.dp))
                     .padding(20.dp)
             ) {
@@ -1800,7 +1880,7 @@ private fun WriteReviewDialog(
                     .fillMaxWidth()
                     .shadow(16.dp, shape = RoundedCornerShape(26.dp), spotColor = Color(0x330D9488))
                     .clip(RoundedCornerShape(26.dp))
-                    .background(Color(0xF2FFFFFF))
+                    .background(AppTheme.colors.surfaceCard)
                     .border(1.2.dp, GlassBorderRefractionBrush, RoundedCornerShape(26.dp))
                     .padding(20.dp)
             ) {
@@ -1930,7 +2010,7 @@ private fun FamiliarsNetworkView(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(14.dp))
-                            .background(Color(0xE6FFFFFF))
+                            .background(AppTheme.colors.surfaceCard)
                             .border(1.dp, Color(0x6638BDF8), RoundedCornerShape(14.dp))
                             .clickable {
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -1949,12 +2029,12 @@ private fun FamiliarsNetworkView(
                                 fontFamily = VazirmatnFontFamily,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
-                                color = BluePrimaryDark
+                                color = AppTheme.colors.textPrimary
                             )
                             Icon(
                                 imageVector = Icons.Default.ContentCopy,
                                 contentDescription = "کپی",
-                                tint = BluePrimary,
+                                tint = AppTheme.colors.primary,
                                 modifier = Modifier.size(16.dp)
                             )
                         }
@@ -2004,7 +2084,7 @@ private fun FamiliarsNetworkView(
                                 .weight(1f)
                                 .heightIn(min = 48.dp)
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(Color(0xCCFFFFFF))
+                                .background(AppTheme.colors.surfaceCard)
                                 .border(1.2.dp, Color(0x6638BDF8), RoundedCornerShape(16.dp))
                                 .clickable { showAddDialog = true }
                                 .padding(horizontal = 12.dp, vertical = 12.dp),
@@ -2363,7 +2443,7 @@ private fun AddMerchantDialog(
                     .fillMaxWidth()
                     .shadow(16.dp, shape = RoundedCornerShape(26.dp), spotColor = Color(0x330D9488))
                     .clip(RoundedCornerShape(26.dp))
-                    .background(Color(0xF2FFFFFF))
+                    .background(AppTheme.colors.surfaceCard)
                     .border(1.2.dp, GlassBorderRefractionBrush, RoundedCornerShape(26.dp))
                     .padding(20.dp)
             ) {

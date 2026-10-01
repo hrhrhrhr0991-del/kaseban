@@ -68,6 +68,7 @@ import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import com.example.ui.theme.AppFontFamily
+import com.example.ui.theme.AppTheme
 
 import com.example.ui.theme.BlueCyanGlow
 import com.example.ui.theme.BlueGlassGradient
@@ -119,9 +120,9 @@ object PersianUtils {
 fun GlassCard(
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(22.dp),
-    backgroundColor: Color = SurfaceGlassCard,
-    borderBrush: Brush = GlassBorderRefractionBrush,
-    borderColor: Color = GlassBorderSubtle,
+    backgroundColor: Color = AppTheme.colors.surfaceCard,
+    borderBrush: Brush = AppTheme.colors.borderBrush,
+    borderColor: Color = AppTheme.colors.borderSubtle,
     borderWidth: Dp = 1.2.dp,
     elevation: Dp = 4.dp,
     onClick: (() -> Unit)? = null,
@@ -211,9 +212,9 @@ fun AnimatedGlassCard(
     visible: Boolean = true,
     delayMillis: Int = 0,
     shape: Shape = RoundedCornerShape(22.dp),
-    backgroundColor: Color = SurfaceGlassCard,
-    borderBrush: Brush = GlassBorderRefractionBrush,
-    borderColor: Color = GlassBorderSubtle,
+    backgroundColor: Color = AppTheme.colors.surfaceCard,
+    borderBrush: Brush = AppTheme.colors.borderBrush,
+    borderColor: Color = AppTheme.colors.borderSubtle,
     borderWidth: Dp = 1.2.dp,
     elevation: Dp = 4.dp,
     onClick: (() -> Unit)? = null,
@@ -292,7 +293,7 @@ fun GlassIconContainer(
 
 /**
  * High-end humanized merchant avatar with tailored color tones, Persian monogram,
- * luminous frosted glass ring, and verified status badge - avoiding generic phone stick-figures
+ * luminous frosted glass ring, and verified status badge (only shown if isVerified == true)
  */
 @Composable
 fun MerchantAvatar(
@@ -300,6 +301,7 @@ fun MerchantAvatar(
     specialty: String = "",
     size: Dp = 54.dp,
     isOnline: Boolean = true,
+    isVerified: Boolean = false,
     avatarUri: String? = null,
     modifier: Modifier = Modifier
 ) {
@@ -378,22 +380,24 @@ fun MerchantAvatar(
             }
         }
 
-        // Verified micro badge on top corner
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .size(16.dp)
-                .clip(CircleShape)
-                .background(Color.White)
-                .border(1.dp, Color(0x330D9488), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.Verified,
-                contentDescription = "کاسب تاییدشده",
-                tint = Color(0xFF059669),
-                modifier = Modifier.size(13.dp)
-            )
+        // Verified micro badge on top corner - ONLY if merchant is verified by Admin
+        if (isVerified) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .size(16.dp)
+                    .clip(CircleShape)
+                    .background(Color.White)
+                    .border(1.dp, Color(0x330284C7), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Verified,
+                    contentDescription = "کاسب تاییدشده و تیک آبی",
+                    tint = Color(0xFF0284C7),
+                    modifier = Modifier.size(13.dp)
+                )
+            }
         }
 
         // Online status indicator on bottom corner
@@ -685,14 +689,15 @@ fun GlassTextField(
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default
 ) {
+    val colors = AppTheme.colors
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier.fillMaxWidth(),
         label = if (label.isNotBlank()) {
-            { Text(label, color = TextSecondary, fontSize = 12.sp, fontFamily = VazirmatnFontFamily) }
+            { Text(label, color = colors.textSecondary, fontSize = 12.sp, fontFamily = VazirmatnFontFamily) }
         } else null,
-        placeholder = { Text(placeholder, color = TextMuted, fontSize = 12.sp, fontFamily = VazirmatnFontFamily) },
+        placeholder = { Text(placeholder, color = colors.textMuted, fontSize = 12.sp, fontFamily = VazirmatnFontFamily) },
         leadingIcon = leadingIcon,
         trailingIcon = trailingIcon,
         singleLine = singleLine,
@@ -700,17 +705,19 @@ fun GlassTextField(
         keyboardOptions = keyboardOptions,
         keyboardActions = keyboardActions,
         textStyle = LocalTextStyle.current.copy(
-            color = TextPrimary,
+            color = colors.textPrimary,
             fontSize = 13.sp,
             fontFamily = VazirmatnFontFamily,
             textAlign = TextAlign.Right
         ),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = Color(0xD9FFFFFF),
-            unfocusedContainerColor = Color(0xB8FFFFFF),
-            focusedBorderColor = BluePrimary,
-            unfocusedBorderColor = GlassBorderSubtle,
-            cursorColor = BluePrimary
+            focusedContainerColor = colors.surfaceCard,
+            unfocusedContainerColor = colors.surface,
+            focusedBorderColor = colors.primary,
+            unfocusedBorderColor = colors.borderSubtle,
+            cursorColor = colors.primary,
+            focusedTextColor = colors.textPrimary,
+            unfocusedTextColor = colors.textPrimary
         )
     )
 }

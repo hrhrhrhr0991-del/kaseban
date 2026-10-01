@@ -58,6 +58,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import com.example.ui.theme.AppTheme
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -301,7 +302,7 @@ private fun DirectChatDetailView(
             modifier = Modifier
                 .fillMaxWidth()
                 .shadow(elevation = 3.dp, spotColor = Color(0x1F2563EB))
-                .background(Color(0xD9FFFFFF))
+                .background(AppTheme.colors.surfaceCard)
                 .border(1.dp, GlassBorderRefractionBrush, androidx.compose.ui.graphics.RectangleShape)
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -412,7 +413,7 @@ private fun DirectChatDetailView(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xD9FFFFFF))
+                            .background(AppTheme.colors.surfaceCard)
                             .border(1.dp, GlassBorderSubtle, RoundedCornerShape(12.dp))
                             .clickable {
                                 inputMessage = text
@@ -436,7 +437,7 @@ private fun DirectChatDetailView(
             modifier = Modifier
                 .fillMaxWidth()
                 .shadow(elevation = 6.dp, spotColor = Color(0x1F2563EB))
-                .background(Color(0xD9FFFFFF))
+                .background(AppTheme.colors.surfaceCard)
                 .border(1.dp, GlassBorderRefractionBrush, androidx.compose.ui.graphics.RectangleShape)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -557,7 +558,7 @@ private fun ChatBubbleItem(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(14.dp))
-                                    .background(Color(0xD9FFFFFF))
+                                    .background(AppTheme.colors.surfaceCard)
                                     .border(1.dp, Color(0x332563EB), RoundedCornerShape(14.dp))
                                     .padding(12.dp)
                             ) {

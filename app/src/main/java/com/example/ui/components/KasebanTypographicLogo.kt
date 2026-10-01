@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -25,11 +26,13 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.ui.theme.AppTheme
 import com.example.ui.theme.PeydaFontFamily
 
@@ -176,181 +179,23 @@ fun KasebanExclusiveLogoMark(
             .shadow(
                 elevation = if (isHero) 6.dp else 2.5.dp,
                 shape = RoundedCornerShape(cornerRadius),
-                spotColor = colors.primary.copy(alpha = 0.35f),
-                ambientColor = colors.primaryDark.copy(alpha = 0.2f)
+                spotColor = Color(0x330284C7),
+                ambientColor = Color(0x1F0369A1)
             )
             .clip(RoundedCornerShape(cornerRadius))
-            .background(colors.primaryGradient)
+            .background(Color.White)
             .border(
                 width = if (isHero) 1.5.dp else 1.dp,
-                brush = Brush.linearGradient(
-                    colors = listOf(
-                        Color(0xFFFDE68A).copy(alpha = 0.75f),
-                        Color.White.copy(alpha = 0.45f),
-                        Color(0xFFF59E0B).copy(alpha = 0.6f)
-                    )
-                ),
+                color = Color(0x260284C7),
                 shape = RoundedCornerShape(cornerRadius)
             ),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.size(size * 0.82f)) {
-            val w = this.size.width
-            val h = this.size.height
-
-            val goldBrush = Brush.linearGradient(
-                colors = listOf(
-                    Color(0xFFFEF08A),
-                    Color(0xFFFBBF24),
-                    Color(0xFFD97706)
-                ),
-                start = Offset(0f, 0f),
-                end = Offset(w, h)
-            )
-
-            val strokeWidth = (w * 0.055f).coerceAtLeast(1.2f)
-            val fineStroke = (w * 0.032f).coerceAtLeast(0.8f)
-
-            // 1. Traditional Persian Bazaar Portal Arch
-            val archPath = Path().apply {
-                moveTo(w * 0.22f, h * 0.82f)
-                lineTo(w * 0.22f, h * 0.50f)
-                // Ogival arch curve up to central apex
-                cubicTo(
-                    w * 0.22f, h * 0.36f,
-                    w * 0.38f, h * 0.24f,
-                    w * 0.50f, h * 0.18f
-                )
-                cubicTo(
-                    w * 0.62f, h * 0.24f,
-                    w * 0.78f, h * 0.36f,
-                    w * 0.78f, h * 0.50f
-                )
-                lineTo(w * 0.78f, h * 0.82f)
-            }
-            drawPath(
-                path = archPath,
-                brush = goldBrush,
-                style = Stroke(
-                    width = strokeWidth,
-                    cap = StrokeCap.Round,
-                    join = StrokeJoin.Round
-                )
-            )
-
-            // 2. Threshold Base Line (سکو و آستانه بازار)
-            drawLine(
-                color = Color.White.copy(alpha = 0.9f),
-                start = Offset(w * 0.15f, h * 0.82f),
-                end = Offset(w * 0.85f, h * 0.82f),
-                strokeWidth = strokeWidth * 1.1f,
-                cap = StrokeCap.Round
-            )
-
-            // 3. Central Vertical Pillar (ستون میزان)
-            drawLine(
-                color = Color.White.copy(alpha = 0.85f),
-                start = Offset(w * 0.50f, h * 0.36f),
-                end = Offset(w * 0.50f, h * 0.78f),
-                strokeWidth = fineStroke * 1.2f,
-                cap = StrokeCap.Round
-            )
-
-            // 4. Scales Balance Beam (شاهین ترازوی کاسبان)
-            val beamPath = Path().apply {
-                moveTo(w * 0.30f, h * 0.49f)
-                quadraticTo(w * 0.50f, h * 0.45f, w * 0.70f, h * 0.49f)
-            }
-            drawPath(
-                path = beamPath,
-                brush = goldBrush,
-                style = Stroke(width = strokeWidth * 0.95f, cap = StrokeCap.Round)
-            )
-
-            // 5. Center Pivot Jewel
-            drawCircle(
-                color = Color(0xFFF59E0B),
-                radius = fineStroke * 1.6f,
-                center = Offset(w * 0.50f, h * 0.46f)
-            )
-            drawCircle(
-                color = Color.White,
-                radius = fineStroke * 0.8f,
-                center = Offset(w * 0.50f, h * 0.46f)
-            )
-
-            // 6. Left and Right Scale Pans (کفه‌های ترازوی دادوستد)
-            // Left cords & pan
-            val leftPan = Path().apply {
-                moveTo(w * 0.25f, h * 0.63f)
-                cubicTo(
-                    w * 0.25f, h * 0.69f,
-                    w * 0.35f, h * 0.69f,
-                    w * 0.35f, h * 0.63f
-                )
-                close()
-            }
-            drawPath(path = leftPan, color = Color.White.copy(alpha = 0.95f))
-            drawLine(
-                color = Color(0xFFBAE6FD),
-                start = Offset(w * 0.30f, h * 0.49f),
-                end = Offset(w * 0.25f, h * 0.63f),
-                strokeWidth = fineStroke * 0.8f
-            )
-            drawLine(
-                color = Color(0xFFBAE6FD),
-                start = Offset(w * 0.30f, h * 0.49f),
-                end = Offset(w * 0.35f, h * 0.63f),
-                strokeWidth = fineStroke * 0.8f
-            )
-
-            // Right cords & pan
-            val rightPan = Path().apply {
-                moveTo(w * 0.65f, h * 0.63f)
-                cubicTo(
-                    w * 0.65f, h * 0.69f,
-                    w * 0.75f, h * 0.69f,
-                    w * 0.75f, h * 0.63f
-                )
-                close()
-            }
-            drawPath(path = rightPan, color = Color.White.copy(alpha = 0.95f))
-            drawLine(
-                color = Color(0xFFBAE6FD),
-                start = Offset(w * 0.70f, h * 0.49f),
-                end = Offset(w * 0.65f, h * 0.63f),
-                strokeWidth = fineStroke * 0.8f
-            )
-            drawLine(
-                color = Color(0xFFBAE6FD),
-                start = Offset(w * 0.70f, h * 0.49f),
-                end = Offset(w * 0.75f, h * 0.63f),
-                strokeWidth = fineStroke * 0.8f
-            )
-
-            // 7. Apex Persian 8-Point Star Medallion (شمسه زرین کاسبان)
-            val starCenter = Offset(w * 0.50f, h * 0.16f)
-            val rOuter = w * 0.10f
-            val rInner = w * 0.05f
-
-            val starPath = Path()
-            val points = 8
-            for (i in 0 until points * 2) {
-                val radius = if (i % 2 == 0) rOuter else rInner
-                val angle = (i * Math.PI / points) - (Math.PI / 2)
-                val x = (starCenter.x + radius * Math.cos(angle)).toFloat()
-                val y = (starCenter.y + radius * Math.sin(angle)).toFloat()
-                if (i == 0) starPath.moveTo(x, y) else starPath.lineTo(x, y)
-            }
-            starPath.close()
-
-            drawPath(path = starPath, brush = goldBrush)
-            drawCircle(
-                color = Color.White,
-                radius = fineStroke * 0.9f,
-                center = starCenter
-            )
-        }
+        Image(
+            painter = painterResource(id = R.drawable.kaseban_app_logo),
+            contentDescription = "لوگوی رسمی کاسبان",
+            modifier = Modifier.size(size * 0.95f)
+        )
     }
 }
 

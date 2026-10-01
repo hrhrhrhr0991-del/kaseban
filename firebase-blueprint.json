@@ -1,0 +1,108 @@
+{
+  "entities": {
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "User profile with authentication and contact details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique user UID from Firebase Auth" },
+        "phone": { "type": "string", "description": "Phone number of user" },
+        "pin": { "type": "string", "description": "4-digit security PIN" },
+        "name": { "type": "string", "description": "Full name or shop display name" },
+        "role": { "type": "string", "description": "Role: خریدار معتمد or کاسب و تولیدکننده" },
+        "referralCode": { "type": "string", "description": "Optional referral code" },
+        "shopTitle": { "type": "string", "description": "Name of the merchant booth if applicable" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp via FieldValue.serverTimestamp()" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp via FieldValue.serverTimestamp()" }
+      },
+      "required": ["id", "phone", "name", "role"]
+    },
+    "Merchant": {
+      "title": "Merchant",
+      "description": "Booth / Shop details of a producer or seller",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Merchant ID (corresponds to owner UID)" },
+        "ownerId": { "type": "string", "description": "UID of owner user" },
+        "name": { "type": "string", "description": "Seller full name" },
+        "title": { "type": "string", "description": "Booth name / title" },
+        "phone": { "type": "string", "description": "Contact phone number" },
+        "avatarEmoji": { "type": "string", "description": "Avatar emoji representation" },
+        "avatarUri": { "type": "string", "description": "Custom avatar image URI" },
+        "bannerUri": { "type": "string", "description": "Custom banner image URI" },
+        "specialty": { "type": "string", "description": "Category / specialty (e.g. نان و شیرینی سنتی)" },
+        "location": { "type": "string", "description": "City and province" },
+        "address": { "type": "string", "description": "Physical workshop address" },
+        "workHours": { "type": "string", "description": "Working hours" },
+        "deliveryMethods": { "type": "string", "description": "Delivery options" },
+        "hasReturnGuarantee": { "type": "boolean", "description": "Return guarantee flag" },
+        "isEcoFriendly": { "type": "boolean", "description": "Eco friendly flag" },
+        "isOrganicCertified": { "type": "boolean", "description": "Organic certified flag" },
+        "story": { "type": "string", "description": "Artisan story and craft description" },
+        "instagram": { "type": "string", "description": "Instagram ID" },
+        "telegram": { "type": "string", "description": "Telegram ID" },
+        "rating": { "type": "number", "description": "Rating out of 5" },
+        "reviewCount": { "type": "number", "description": "Total number of reviews" },
+        "isOnline": { "type": "boolean", "description": "Online status" },
+        "isVerified": { "type": "boolean", "description": "Verified badge flag" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp via FieldValue.serverTimestamp()" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp via FieldValue.serverTimestamp()" }
+      },
+      "required": ["id", "ownerId", "name", "title", "phone", "specialty", "location"]
+    },
+    "MerchantProduct": {
+      "title": "MerchantProduct",
+      "description": "Product listed inside a merchant booth",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Product ID" },
+        "merchantId": { "type": "string", "description": "Parent Merchant ID" },
+        "title": { "type": "string", "description": "Product title" },
+        "weight": { "type": "string", "description": "Weight / unit description" },
+        "price": { "type": "number", "description": "Price in Tomans" },
+        "originalPrice": { "type": "number", "description": "Original price before discount" },
+        "isAvailable": { "type": "boolean", "description": "Availability flag" },
+        "category": { "type": "string", "description": "Category name" },
+        "description": { "type": "string", "description": "Product detailed description" },
+        "imageUrl": { "type": "string", "description": "Product image URI or URL" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp via FieldValue.serverTimestamp()" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp via FieldValue.serverTimestamp()" }
+      },
+      "required": ["id", "merchantId", "title", "price"]
+    },
+    "BoothPost": {
+      "title": "BoothPost",
+      "description": "Post / Story published by a merchant about craft and updates",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Post ID" },
+        "merchantId": { "type": "string", "description": "Parent Merchant ID" },
+        "title": { "type": "string", "description": "Post title" },
+        "description": { "type": "string", "description": "Post description text" },
+        "imageUri": { "type": "string", "description": "Post image URI" },
+        "likes": { "type": "number", "description": "Number of likes" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp via FieldValue.serverTimestamp()" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp via FieldValue.serverTimestamp()" }
+      },
+      "required": ["id", "merchantId", "title", "description"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserAccount",
+      "description": "User profile data scoped to UID"
+    },
+    "/merchants/{merchantId}": {
+      "schema": "Merchant",
+      "description": "Public merchant booths created by producers"
+    },
+    "/merchants/{merchantId}/products/{productId}": {
+      "schema": "MerchantProduct",
+      "description": "Products listed under a merchant booth"
+    },
+    "/merchants/{merchantId}/posts/{postId}": {
+      "schema": "BoothPost",
+      "description": "Posts and craft updates published by a merchant"
+    }
+  }
+}
